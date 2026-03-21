@@ -2,7 +2,7 @@
 # https://github.com/pythongosssss/ComfyUI-WD14-Tagger/blob/main/wd14tagger.py
 
 # {
-#     "wd-v1-4-moat-tagger-v2": "https://huggingface.co/SmilingWolf/wd-v1-4-moat-tagger-v2",
+#     "wd-eva02-large-tagger-v3": "https://huggingface.co/SmilingWolf/wd-eva02-large-tagger-v3",
 #     "wd-v1-4-convnextv2-tagger-v2": "https://huggingface.co/SmilingWolf/wd-v1-4-convnextv2-tagger-v2",
 #     "wd-v1-4-convnext-tagger-v2": "https://huggingface.co/SmilingWolf/wd-v1-4-convnext-tagger-v2",
 #     "wd-v1-4-convnext-tagger": "https://huggingface.co/SmilingWolf/wd-v1-4-convnext-tagger",
@@ -27,16 +27,16 @@ global_csv = None
 def default_interrogator(image_rgb, threshold=0.35, character_threshold=0.85, exclude_tags=""):
     global global_model, global_csv
 
-    model_name = "wd-v1-4-moat-tagger-v2"
+    model_name = "wd-eva02-large-tagger-v3"
 
     model_onnx_filename = load_file_from_url(
-        url=f'https://huggingface.co/lllyasviel/misc/resolve/main/{model_name}.onnx',
+        url=f'https://huggingface.co/SmilingWolf/wd-eva02-large-tagger-v3/resolve/main/model.onnx',
         model_dir=path_clip_vision,
         file_name=f'{model_name}.onnx',
     )
 
     model_csv_filename = load_file_from_url(
-        url=f'https://huggingface.co/lllyasviel/misc/resolve/main/{model_name}.csv',
+        url=f'https://huggingface.co/SmilingWolf/wd-eva02-large-tagger-v3/raw/main/selected_tags.csv',
         model_dir=path_clip_vision,
         file_name=f'{model_name}.csv',
     )
