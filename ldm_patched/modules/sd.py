@@ -22,6 +22,26 @@ import ldm_patched.t2ia.adapter
 import ldm_patched.modules.supported_models_base
 import ldm_patched.taesd.taesd
 
+
+def detect_unet_prefix(sd):
+    candidates = [
+        "model.diffusion_model.",
+        "",
+    ]
+
+    marker_suffixes = [
+        "input_blocks.0.0.weight",
+        "llm_adapter.blocks.0.cross_attn.q_proj.weight",
+        "x_embedder.proj.1.weight",
+    ]
+
+    for prefix in candidates:
+        for suffix in marker_suffixes:
+            if f"{prefix}{suffix}" in sd:
+                return prefix
+
+    return "model.diffusion_model."
+
 def load_model_weights(model, sd):
     m, u = model.load_state_dict(sd, strict=False)
     m = set(m)
@@ -438,7 +458,8 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
     model_patcher = None
     clip_target = None
 
-    parameters = ldm_patched.modules.utils.calculate_parameters(sd, "model.diffusion_model.")
+    unet_prefix = detect_unet_prefix(sd)
+    parameters = ldm_patched.modules.utils.calculate_parameters(sd, unet_prefix)
     unet_dtype = model_management.unet_dtype(model_params=parameters)
     load_device = model_management.get_torch_device()
     manual_cast_dtype = model_management.unet_manual_cast(unet_dtype, load_device)
@@ -446,7 +467,7 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
     class WeightsLoader(torch.nn.Module):
         pass
 
-    model_config = model_detection.model_config_from_unet(sd, "model.diffusion_model.", unet_dtype)
+    model_config = model_detection.model_config_from_unet(sd, unet_prefix, unet_dtype)
     model_config.set_manual_cast(manual_cast_dtype)
 
     if model_config is None:
@@ -459,8 +480,8 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
     if output_model:
         inital_load_device = model_management.unet_inital_load_device(parameters, unet_dtype)
         offload_device = model_management.unet_offload_device()
-        model = model_config.get_model(sd, "model.diffusion_model.", device=inital_load_device)
-        model.load_model_weights(sd, "model.diffusion_model.")
+        model = model_config.get_model(sd, unet_prefix, device=inital_load_device)
+        model.load_model_weights(sd, unet_prefix)
 
     if output_vae:
         if vae_filename_param is None:
