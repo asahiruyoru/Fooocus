@@ -466,10 +466,14 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
         if vae_filename_param is None:
             vae_sd = ldm_patched.modules.utils.state_dict_prefix_replace(sd, {"first_stage_model.": ""}, filter_keys=True)
             vae_sd = model_config.process_vae_state_dict(vae_sd)
+            if len(vae_sd) > 0:
+                vae = VAE(sd=vae_sd)
+            else:
+                print("No VAE found in checkpoint. You may need to load a separate VAE file.")
         else:
             vae_sd = ldm_patched.modules.utils.load_torch_file(vae_filename_param)
             vae_filename = vae_filename_param
-        vae = VAE(sd=vae_sd)
+            vae = VAE(sd=vae_sd)
 
     if output_clip:
         w = WeightsLoader()

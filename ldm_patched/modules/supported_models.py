@@ -308,3 +308,43 @@ class SD_X4Upscaler(SD20):
 
 models = [Stable_Zero123, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXLRefiner, SDXL, SSD1B, Segmind_Vega, SD_X4Upscaler]
 models += [SVD_img2vid]
+
+
+class AnimaPreview2(supported_models_base.BASE):
+    unet_config = {
+        "image_model": "anima",
+    }
+
+    unet_extra_config = {}
+
+    latent_format = latent_formats.Wan21
+
+    sampling_settings = {
+        "shift": 1.0,
+    }
+
+    @classmethod
+    def matches(s, unet_config):
+        if unet_config.get("image_model", None) == "anima":
+            return True
+        return False
+
+    def __init__(self, unet_config):
+        self.unet_config = unet_config
+        self.latent_format = self.latent_format()
+
+    def model_type(self, state_dict, prefix=""):
+        return model_base.ModelType.FLOW
+
+    def get_model(self, state_dict, prefix="", device=None):
+        return model_base.Anima(self, model_type=self.model_type(state_dict, prefix), device=device)
+
+    def clip_target(self):
+        return None  # Anima uses separate Qwen3 text encoder, not CLIP
+
+    def process_unet_state_dict(self, state_dict):
+        return state_dict
+
+
+models += [AnimaPreview2]
+

@@ -225,6 +225,13 @@ def get_previewer(model):
     global VAE_approx_models
 
     from modules.config import path_vae_approx
+
+    # Skip preview for models with non-4-channel latents (e.g., Anima with 16ch)
+    if hasattr(model, 'model') and hasattr(model.model, 'latent_format'):
+        latent_channels = getattr(model.model.latent_format, 'latent_channels', 4)
+        if latent_channels != 4:
+            return None
+
     is_sdxl = isinstance(model.model.latent_format, ldm_patched.modules.latent_formats.SDXL)
     vae_approx_filename = os.path.join(path_vae_approx, 'xlvaeapp.pth' if is_sdxl else 'vaeapp_sd15.pth')
 
