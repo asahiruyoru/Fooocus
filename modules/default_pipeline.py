@@ -10,7 +10,7 @@ import modules.inpaint_worker
 import extras.vae_interpose as vae_interpose
 from extras.expansion import FooocusExpansion
 
-from ldm_patched.modules.model_base import SDXL, SDXLRefiner
+from ldm_patched.modules.model_base import SDXL, SDXLRefiner, Anima as AnimaModel
 from modules.sample_hijack import clip_separate
 from modules.util import get_file_from_folder_list, get_enabled_loras
 
@@ -48,13 +48,18 @@ def refresh_controlnets(model_paths):
 def assert_model_integrity():
     error_message = None
 
-    if not isinstance(model_base.unet_with_lora.model, SDXL):
-        error_message = 'You have selected base model other than SDXL. This is not supported yet.'
+    if not isinstance(model_base.unet_with_lora.model, (SDXL, AnimaModel)):
+        error_message = 'You have selected base model other than SDXL or Anima Preview2. This is not supported yet.'
 
     if error_message is not None:
         raise NotImplementedError(error_message)
 
     return True
+
+
+def is_anima_model():
+    """Check if the currently loaded base model is an Anima model."""
+    return isinstance(model_base.unet_with_lora.model, AnimaModel)
 
 
 @torch.no_grad()
@@ -215,7 +220,8 @@ def set_clip_skip(clip_skip: int):
 @torch.no_grad()
 @torch.inference_mode()
 def clear_all_caches():
-    final_clip.fcs_cond_cache = {}
+    if final_clip is not None:
+        final_clip.fcs_cond_cache = {}
 
 
 @torch.no_grad()
@@ -225,7 +231,10 @@ def prepare_text_encoder(async_call=True):
         # TODO: make sure that this is always called in an async way so that users cannot feel it.
         pass
     assert_model_integrity()
-    ldm_patched.modules.model_management.load_models_gpu([final_clip.patcher, final_expansion.patcher])
+    if final_clip is not None and final_expansion is not None:
+        ldm_patched.modules.model_management.load_models_gpu([final_clip.patcher, final_expansion.patcher])
+    elif final_expansion is not None:
+        ldm_patched.modules.model_management.load_models_gpu([final_expansion.patcher])
     return
 
 

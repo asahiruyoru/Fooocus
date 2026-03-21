@@ -207,3 +207,60 @@ class StableCascadeSampling(ModelSamplingDiscrete):
 
         percent = 1.0 - percent
         return self.sigma(torch.tensor(percent))
+
+
+class CONST:
+    def calculate_input(self, sigma, noise):
+        return noise
+
+    def calculate_denoised(self, sigma, model_output, model_input):
+        sigma = sigma.view(sigma.shape[:1] + (1,) * (model_output.ndim - 1))
+        return model_input - model_output * sigma
+
+    def noise_scaling(self, sigma, noise, latent_image, max_denoise=False):
+        return sigma * noise + (1.0 - sigma) * latent_image
+
+    def inverse_noise_scaling(self, sigma, latent):
+        return latent
+
+
+class ModelSamplingDiscreteFlow(torch.nn.Module):
+    def __init__(self, model_config=None):
+        super().__init__()
+        if model_config is not None:
+            sampling_settings = model_config.sampling_settings
+        else:
+            sampling_settings = {}
+
+        self.set_parameters(shift=sampling_settings.get("shift", 1.0), multiplier=sampling_settings.get("multiplier", 1000))
+
+    def set_parameters(self, shift=1.0, timesteps=1000, multiplier=1000):
+        self.shift = shift
+        self.multiplier = multiplier
+        ts = self._sigma(torch.arange(1, timesteps + 1, 1))
+        self.register_buffer('sigmas', ts)
+        self.sigma_data = 1.0
+
+    @property
+    def sigma_min(self):
+        return self.sigmas[0]
+
+    @property
+    def sigma_max(self):
+        return self.sigmas[-1]
+
+    def timestep(self, sigma):
+        return sigma * self.multiplier
+
+    def sigma(self, timestep):
+        return timestep / self.multiplier
+
+    def _sigma(self, timestep):
+        return timestep / 1000.0
+
+    def percent_to_sigma(self, percent):
+        if percent <= 0.0:
+            return 1.0
+        if percent >= 1.0:
+            return 0.0
+        return 1.0 - percent
