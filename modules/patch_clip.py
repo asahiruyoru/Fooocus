@@ -54,7 +54,7 @@ def patched_encode_token_weights(self, token_weight_pairs):
                     if weight != 1.0:
                         z[i][j] = (z[i][j] - z_empty[j]) * weight + z_empty[j]
             new_mean = z.mean()
-            z = z * (original_mean / new_mean)
+            
         output.append(z)
 
     if len(output) == 0:

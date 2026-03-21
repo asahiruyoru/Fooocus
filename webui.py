@@ -792,7 +792,7 @@ with shared.gradio_root:
                     with gr.Tab(label='Control'):
                         debugging_cn_preprocessor = gr.Checkbox(label='Debug Preprocessors', value=False,
                                                                 info='See the results from preprocessors.')
-                        skipping_cn_preprocessor = gr.Checkbox(label='Skip Preprocessors', value=False,
+                        skipping_cn_preprocessor = gr.Checkbox(label='Skip Preprocessors', value=True,
                                                                info='Do not preprocess images. (Inputs are already canny/depth/cropped-face/etc.)')
 
                         mixing_image_prompt_and_vary_upscale = gr.Checkbox(label='Mixing Image Prompt and Vary/Upscale',
