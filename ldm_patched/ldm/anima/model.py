@@ -404,7 +404,7 @@ class VideoRopePosition3DEmb(nn.Module):
         freqs_w = freqs_w.view(1, 1, W, dim_w, 2, 2).expand(T, H, -1, -1, -1, -1)
 
         freqs = torch.cat([freqs_t, freqs_h, freqs_w], dim=3)  # T, H, W, half_dim, 2, 2
-        freqs = freqs.reshape(T * H * W, half_dim, 2, 2).unsqueeze(0).unsqueeze(0)  # 1, 1, L, half_dim, 2, 2
+        freqs = freqs.reshape(T * H * W, half_dim, 2, 2).unsqueeze(0).unsqueeze(2)  # 1, L, 1, half_dim, 2, 2
         return freqs.to(dtype)
 
 
@@ -569,7 +569,7 @@ class MiniTrainDIT(nn.Module):
         t_emb = self.t_embedding_norm(t_emb)
 
         block_kwargs = {
-            "rope_emb_L_1_1_D": rope_emb.unsqueeze(1).unsqueeze(0) if rope_emb is not None else None,
+            "rope_emb_L_1_1_D": rope_emb,
             "adaln_lora_B_T_3D": adaln_lora,
             "extra_per_block_pos_emb": extra_pos_emb,
             "transformer_options": kwargs.get("transformer_options", {}),
