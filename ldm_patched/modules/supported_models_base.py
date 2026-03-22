@@ -27,7 +27,7 @@ class BASE:
     @classmethod
     def matches(s, unet_config):
         for k in s.unet_config:
-            if s.unet_config[k] != unet_config[k]:
+            if unet_config.get(k) != s.unet_config[k]:
                 return False
         return True
 
