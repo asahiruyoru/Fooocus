@@ -43,7 +43,12 @@ class CausalConv3d(ops.Conv3d):
         if cache_x is None and x.shape[2] == 1:
             #Fast path - the op will pad for use by truncating the weight
             #and save math on a pile of zeros.
-            return super().forward(x, autopad="causal_zero")
+            if getattr(self, 'ldm_patched_cast_weights', False):
+                weight, bias = ldm_ops.cast_bias_weight(self, x)
+            else:
+                weight, bias = self.weight, self.bias
+            weight = weight[:, :, -1:, :, :]
+            return self._conv_forward(x, weight, bias)
 
         if self._padding > 0:
             padding_needed = self._padding
