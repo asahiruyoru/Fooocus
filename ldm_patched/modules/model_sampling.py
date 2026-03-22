@@ -224,6 +224,11 @@ class CONST:
         return latent
 
 
+def time_snr_shift(alpha, t):
+    if alpha == 1.0:
+        return t
+    return alpha * t / (1 + (alpha - 1) * t)
+
 class ModelSamplingDiscreteFlow(torch.nn.Module):
     def __init__(self, model_config=None):
         super().__init__()
@@ -237,7 +242,7 @@ class ModelSamplingDiscreteFlow(torch.nn.Module):
     def set_parameters(self, shift=1.0, timesteps=1000, multiplier=1000):
         self.shift = shift
         self.multiplier = multiplier
-        ts = self._sigma(torch.arange(1, timesteps + 1, 1))
+        ts = self.sigma((torch.arange(1, timesteps + 1, 1) / timesteps) * multiplier)
         self.register_buffer('sigmas', ts)
         self.sigma_data = 1.0
 
@@ -253,14 +258,11 @@ class ModelSamplingDiscreteFlow(torch.nn.Module):
         return sigma * self.multiplier
 
     def sigma(self, timestep):
-        return timestep / self.multiplier
-
-    def _sigma(self, timestep):
-        return timestep / 1000.0
+        return time_snr_shift(self.shift, timestep / self.multiplier)
 
     def percent_to_sigma(self, percent):
         if percent <= 0.0:
             return 1.0
         if percent >= 1.0:
             return 0.0
-        return 1.0 - percent
+        return time_snr_shift(self.shift, 1.0 - percent)

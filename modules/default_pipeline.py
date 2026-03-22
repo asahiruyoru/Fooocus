@@ -203,9 +203,14 @@ def anima_clip_encode(texts):
     hidden_states, token_ids = encoder.encode(combined_text)
 
     # Return conditioning in the format expected by the pipeline:
-    # [[cross_attn_tensor, {"pooled_output": pooled, "model_conds": {...}}]]
+    # [[cross_attn_tensor, {"pooled_output": pooled, "t5xxl_ids": ids, "t5xxl_weights": weights}]]
     pooled = torch.zeros(1, 1024)  # Anima doesn't use pooled output for ADM
-    return [[hidden_states, {"pooled_output": pooled}]]
+    
+    # model_base.Anima.extra_conds expects t5xxl_ids and t5xxl_weights
+    t5xxl_ids = token_ids[0].to(torch.int)  # Shape (seq_len,)
+    t5xxl_weights = torch.ones_like(t5xxl_ids, dtype=torch.float)
+    
+    return [[hidden_states, {"pooled_output": pooled, "t5xxl_ids": t5xxl_ids, "t5xxl_weights": t5xxl_weights}]]
 
 
 @torch.no_grad()
