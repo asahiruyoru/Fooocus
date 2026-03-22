@@ -208,6 +208,9 @@ def model_lora_keys_unet(model, key_map={}):
             key_lora = k[len("diffusion_model."):-len(".weight")].replace(".", "_")
             key_map["lora_unet_{}".format(key_lora)] = k
 
+    if model.model_config.unet_config.get("image_model") is not None:
+        return key_map
+
     diffusers_keys = ldm_patched.modules.utils.unet_to_diffusers(model.model_config.unet_config)
     for k in diffusers_keys:
         if k.endswith(".weight"):
