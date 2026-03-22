@@ -24,23 +24,18 @@ import ldm_patched.taesd.taesd
 
 
 def detect_unet_prefix(sd):
-    candidates = [
-        "model.diffusion_model.",
-        "",
-    ]
-
     marker_suffixes = [
-        "input_blocks.0.0.weight",
         "llm_adapter.blocks.0.cross_attn.q_proj.weight",
         "x_embedder.proj.1.weight",
+        "input_blocks.0.0.weight",
     ]
 
-    for prefix in candidates:
-        for suffix in marker_suffixes:
-            if f"{prefix}{suffix}" in sd:
-                return prefix
+    for suffix in marker_suffixes:
+        for key in sd.keys():
+            if key.endswith(suffix):
+                return key[:-len(suffix)]
 
-    return "model.diffusion_model."
+    return ""
 
 def load_model_weights(model, sd):
     m, u = model.load_state_dict(sd, strict=False)
