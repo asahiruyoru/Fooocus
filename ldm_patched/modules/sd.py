@@ -183,6 +183,16 @@ class VAE:
                                                             decoder_config={'target': "ldm_patched.ldm.modules.temporal_ae.VideoDecoder", 'params': decoder_config})
             elif "taesd_decoder.1.weight" in sd:
                 self.first_stage_model = ldm_patched.taesd.taesd.TAESD()
+            elif "decoder.middle.0.residual.0.gamma" in sd:
+                # Wan21-style VAE (used by Anima and similar models)
+                from ldm_patched.ldm.anima.vae import WanVAE
+                dim = sd["decoder.head.0.gamma"].shape[0]
+                self.latent_channels = 16
+                self.downscale_ratio = 8
+                ddconfig = {"dim": dim, "z_dim": self.latent_channels, "dim_mult": [1, 2, 4, 4], "num_res_blocks": 2, "attn_scales": [], "temperal_downsample": [False, True, True], "dropout": 0.0}
+                self.first_stage_model = WanVAE(**ddconfig)
+                self.memory_used_decode = lambda shape, dtype: (2200 * shape[2] * shape[3] * (8*8)) * model_management.dtype_size(dtype)
+                self.memory_used_encode = lambda shape, dtype: (1500 * shape[2] * shape[3]) * model_management.dtype_size(dtype)
             else:
                 #default SD1.x/SD2.x VAE parameters
                 z_channels = 4
