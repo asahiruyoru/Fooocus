@@ -161,10 +161,16 @@ def apply_rotary_pos_emb_dit(t, freqs):
 def torch_attention_op(q, k, v, transformer_options={}):
     in_q_shape = q.shape
     in_k_shape = k.shape
-    q_r = rearrange(q, "b ... h k -> b h ... k").view(in_q_shape[0], in_q_shape[-2], -1, in_q_shape[-1])
-    k_r = rearrange(k, "b ... h v -> b h ... v").view(in_k_shape[0], in_k_shape[-2], -1, in_k_shape[-1])
-    v_r = rearrange(v, "b ... h v -> b h ... v").view(in_k_shape[0], in_k_shape[-2], -1, in_k_shape[-1])
-    return optimized_attention(q_r, k_r, v_r, in_q_shape[-2], skip_reshape=True)
+    heads = in_q_shape[-2]
+    head_dim = in_q_shape[-1]
+    
+    q_r = q.reshape(in_q_shape[0], -1, heads * head_dim)
+    k_r = k.reshape(in_k_shape[0], -1, heads * in_k_shape[-1])
+    v_r = v.reshape(in_k_shape[0], -1, heads * in_k_shape[-1])
+    
+    res = optimized_attention(q_r, k_r, v_r, heads)
+    
+    return res.reshape(in_q_shape[0], *in_q_shape[1:-2], heads * head_dim)
 
 
 class GPT2FeedForward(nn.Module):
