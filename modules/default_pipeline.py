@@ -13,6 +13,7 @@ from extras.expansion import FooocusExpansion
 from ldm_patched.modules.model_base import SDXL, SDXLRefiner, Anima as AnimaModel
 from modules.sample_hijack import clip_separate
 from modules.util import get_file_from_folder_list, get_enabled_loras
+from modules.anima_text_encoder import get_anima_text_encoder
 
 
 model_base = core.StableDiffusionModel()
@@ -26,6 +27,16 @@ final_refiner_unet = None
 final_refiner_vae = None
 
 loaded_ControlNets = {}
+
+
+def is_anima_model():
+    """Check if the current loaded model is an Anima DiT model."""
+    global final_unet
+    if final_unet is None:
+        return False
+    if hasattr(final_unet, 'model') and isinstance(final_unet.model, AnimaModel):
+        return True
+    return False
 
 
 @torch.no_grad()
@@ -184,10 +195,28 @@ def clone_cond(conds):
 
 @torch.no_grad()
 @torch.inference_mode()
+def anima_clip_encode(texts):
+    """Encode texts using the Qwen3 text encoder for Anima models."""
+    encoder = get_anima_text_encoder()
+    combined_text = ' '.join(texts) if isinstance(texts, list) else str(texts)
+
+    hidden_states, token_ids = encoder.encode(combined_text)
+
+    # Return conditioning in the format expected by the pipeline:
+    # [[cross_attn_tensor, {"pooled_output": pooled, "model_conds": {...}}]]
+    pooled = torch.zeros(1, 1024)  # Anima doesn't use pooled output for ADM
+    return [[hidden_states, {"pooled_output": pooled}]]
+
+
+@torch.no_grad()
+@torch.inference_mode()
 def clip_encode(texts, pool_top_k=1):
     global final_clip
 
     if final_clip is None:
+        # For Anima models, use Qwen3 text encoder instead of CLIP
+        if is_anima_model():
+            return anima_clip_encode(texts)
         return None
     if not isinstance(texts, list):
         return None
@@ -212,7 +241,7 @@ def set_clip_skip(clip_skip: int):
     global final_clip
 
     if final_clip is None:
-        return
+        return  # Anima models don't use CLIP skip
 
     final_clip.clip_layer(-abs(clip_skip))
     return
@@ -234,6 +263,9 @@ def prepare_text_encoder(async_call=True):
     if final_clip is not None and final_expansion is not None:
         ldm_patched.modules.model_management.load_models_gpu([final_clip.patcher, final_expansion.patcher])
     elif final_expansion is not None:
+        ldm_patched.modules.model_management.load_models_gpu([final_expansion.patcher])
+    elif is_anima_model() and final_expansion is not None:
+        # Anima has no CLIP, just load the expansion model
         ldm_patched.modules.model_management.load_models_gpu([final_expansion.patcher])
     return
 
@@ -368,7 +400,12 @@ def process_diffusion(positive_cond, negative_cond, steps, switch, width, height
     print(f'[Sampler] refiner_swap_method = {refiner_swap_method}')
 
     if latent is None:
-        initial_latent = core.generate_empty_latent(width=width, height=height, batch_size=1)
+        if is_anima_model():
+            # Anima uses 16-channel latents (Wan21 format)
+            latent_channels = 16
+            initial_latent = {'samples': torch.zeros([1, latent_channels, height // 8, width // 8])}
+        else:
+            initial_latent = core.generate_empty_latent(width=width, height=height, batch_size=1)
     else:
         initial_latent = latent
 
