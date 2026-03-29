@@ -320,7 +320,8 @@ class AnimaPreview2(supported_models_base.BASE):
     latent_format = latent_formats.Wan21
 
     sampling_settings = {
-        "shift": 1.0,
+        "multiplier": 1.0,
+        "shift": 3.0,
     }
 
     @classmethod
