@@ -116,8 +116,14 @@ class AnimaTextEncoder:
             # Move model back to offload device
             self.model.to(self.offload_device)
 
-            # Return hidden states and token IDs (both on CPU for now)
-            return hidden_states.cpu(), input_ids.cpu()
+            # Clamp token IDs to fit within the LLM adapter's embedding table (32128 entries).
+            # Qwen3's pad_token_id (151643) exceeds this range and would cause CUDA index errors.
+            # Replace out-of-range IDs with 0 (will be masked by attention_mask anyway).
+            clamped_ids = input_ids.cpu()
+            clamped_ids[clamped_ids >= 32128] = 0
+
+            # Return hidden states and token IDs (both on CPU)
+            return hidden_states.cpu(), clamped_ids
 
         except Exception as e:
             print(f"[AnimaTextEncoder] Encoding failed: {e}")
