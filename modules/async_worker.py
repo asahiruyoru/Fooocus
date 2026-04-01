@@ -663,6 +663,20 @@ def worker():
                                     base_model_name=async_task.base_model_name,
                                     loras=loras, base_model_additional_loras=base_model_additional_loras,
                                     use_synthetic_refiner=use_synthetic_refiner, vae_name=async_task.vae_name)
+
+        # Anima Preview2 (Rectified Flow) requires euler + simple scheduler
+        if pipeline.is_anima_model():
+            if async_task.sampler_name != 'euler':
+                print(f'[Anima] Overriding sampler: {async_task.sampler_name} -> euler')
+                async_task.sampler_name = 'euler'
+            if async_task.scheduler_name != 'simple':
+                print(f'[Anima] Overriding scheduler: {async_task.scheduler_name} -> simple')
+                async_task.scheduler_name = 'simple'
+            if async_task.cfg_scale > 5.0:
+                print(f'[Anima] Overriding CFG: {async_task.cfg_scale} -> 4.0')
+                async_task.cfg_scale = 4.0
+            async_task.refiner_model_name = 'None'
+
         pipeline.set_clip_skip(async_task.clip_skip)
         if advance_progress:
             current_progress += 1
