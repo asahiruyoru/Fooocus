@@ -887,7 +887,7 @@ def downloading_sdxl_hyper_sd_lora():
 
 def downloading_controlnet_canny():
     load_file_from_url(
-        url='https://huggingface.co/2vXpSwA7/iroiro-lora/resolve/main/test_controlnet2/CN-anytest_v4-marged.safetensors',
+        url='https://huggingface.co/lllyasviel/misc/resolve/main/control-lora-canny-rank128.safetensors',
         model_dir=path_controlnet,
         file_name='control-lora-canny-rank128.safetensors'
     )
@@ -896,11 +896,29 @@ def downloading_controlnet_canny():
 
 def downloading_controlnet_cpds():
     load_file_from_url(
-        url='https://huggingface.co/2vXpSwA7/iroiro-lora/resolve/main/test_controlnet2/CN-anytest4_illustrious2_B.safetensors',
+        url='https://huggingface.co/lllyasviel/misc/resolve/main/fooocus_xl_cpds_128.safetensors',
         model_dir=path_controlnet,
         file_name='fooocus_xl_cpds_128.safetensors'
     )
     return os.path.join(path_controlnet, 'fooocus_xl_cpds_128.safetensors')
+
+
+def downloading_controlnet_anytest():
+    load_file_from_url(
+        url='https://huggingface.co/2vXpSwA7/iroiro-lora/resolve/main/test_controlnet2/CN-anytest_v4-marged.safetensors',
+        model_dir=path_controlnet,
+        file_name='CN-anytest_v4-marged.safetensors'
+    )
+    return os.path.join(path_controlnet, 'CN-anytest_v4-marged.safetensors')
+
+
+def downloading_controlnet_anytest_b():
+    load_file_from_url(
+        url='https://huggingface.co/2vXpSwA7/iroiro-lora/resolve/main/test_controlnet2/CN-anytest4_illustrious2_B.safetensors',
+        model_dir=path_controlnet,
+        file_name='CN-anytest4_illustrious2_B.safetensors'
+    )
+    return os.path.join(path_controlnet, 'CN-anytest4_illustrious2_B.safetensors')
 
 
 def downloading_ip_adapters(v):

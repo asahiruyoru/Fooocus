@@ -72,14 +72,17 @@ input_image_tab_ids = ['uov_tab', 'ip_tab', 'inpaint_tab', 'describe_tab', 'enha
 
 cn_ip = "ImagePrompt"
 cn_ip_face = "FaceSwap"
-cn_canny = 'AnyTest'
-cn_cpds = 'AnyTest_B'
+cn_canny = 'PyraCanny'
+cn_cpds = 'CPDS'
+cn_anytest = 'AnyTest'
+cn_anytest_b = 'AnyTest_B'
 
-ip_list = [cn_ip, cn_canny, cn_cpds, cn_ip_face]
+ip_list = [cn_ip, cn_canny, cn_cpds, cn_anytest, cn_anytest_b, cn_ip_face]
 default_ip = cn_ip
 
 default_parameters = {
-    cn_ip: (0.5, 0.6), cn_ip_face: (0.9, 0.75), cn_canny: (1.0, 1.0), cn_cpds: (0.5, 1.0)
+    cn_ip: (0.5, 0.6), cn_ip_face: (0.9, 0.75), cn_canny: (0.5, 1.0), cn_cpds: (0.5, 1.0),
+    cn_anytest: (1.0, 1.0), cn_anytest_b: (0.5, 1.0)
 }  # stop, weight
 
 output_formats = ['png', 'jpeg', 'webp']
