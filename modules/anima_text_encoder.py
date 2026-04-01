@@ -1,8 +1,10 @@
 """
-Anima Preview2 Text Encoder - Qwen3 integration for Fooocus.
+Anima Preview2 Text Encoder - Dual tokenizer for Fooocus.
 
-Loads the Qwen3-0.6B model from safetensors and produces text embeddings
-for the Anima DiT model's cross-attention conditioning.
+Uses Qwen3-0.6B to produce hidden states (source embeddings) and
+T5 tokenizer to produce token IDs for the LLM adapter's Embedding(32128).
+The LLM adapter cross-attends between the T5 token embeddings and Qwen3
+hidden states to produce the final conditioning for the DiT model.
 """
 import os
 import torch
@@ -13,53 +15,56 @@ _anima_text_encoder = None
 
 
 class AnimaTextEncoder:
-    """Wraps a Qwen3-0.6B text encoder for Anima conditioning."""
+    """Dual-tokenizer encoder: Qwen3 for hidden states, T5 for token IDs."""
 
     def __init__(self, model_path):
         self.model_path = model_path
         self.model = None
-        self.tokenizer = None
+        self.qwen_tokenizer = None
+        self.t5_tokenizer = None
         self.device = model_management.text_encoder_device()
         self.offload_device = model_management.text_encoder_offload_device()
         self.dtype = model_management.text_encoder_dtype(self.device)
         self._load(model_path)
 
     def _load(self, model_path):
-        from transformers import AutoModelForCausalLM, AutoTokenizer
+        from transformers import AutoModelForCausalLM, AutoTokenizer, T5Tokenizer
         from safetensors.torch import load_file
 
         print(f"[AnimaTextEncoder] Loading Qwen3 text encoder from: {model_path}")
 
-        # Load tokenizer from HuggingFace hub (cached after first download)
+        # Load Qwen3 tokenizer (for hidden state generation)
         try:
-            self.tokenizer = AutoTokenizer.from_pretrained(
+            self.qwen_tokenizer = AutoTokenizer.from_pretrained(
                 "Qwen/Qwen3-0.6B",
                 trust_remote_code=True,
             )
-            print("[AnimaTextEncoder] Loaded Qwen3 tokenizer from HuggingFace hub")
+            print("[AnimaTextEncoder] Loaded Qwen3 tokenizer")
         except Exception as e:
-            print(f"[AnimaTextEncoder] Failed to load tokenizer from hub: {e}")
-            print("[AnimaTextEncoder] Falling back to basic tokenizer")
-            self.tokenizer = None
+            print(f"[AnimaTextEncoder] Failed to load Qwen3 tokenizer: {e}")
 
-        # Load model architecture using AutoModel config, then load our weights
+        # Load T5 tokenizer (for LLM adapter token IDs, vocab=32128)
         try:
-            # First, load the model structure from HuggingFace
+            self.t5_tokenizer = T5Tokenizer.from_pretrained("google-t5/t5-base")
+            print("[AnimaTextEncoder] Loaded T5 tokenizer (vocab=32128)")
+        except Exception as e:
+            print(f"[AnimaTextEncoder] Failed to load T5 tokenizer: {e}")
+
+        # Load Qwen3 model
+        try:
             model = AutoModelForCausalLM.from_pretrained(
                 "Qwen/Qwen3-0.6B",
                 torch_dtype=self.dtype,
                 trust_remote_code=True,
             )
 
-            # If we have a local safetensors file, load those weights instead
             if os.path.exists(model_path):
-                print(f"[AnimaTextEncoder] Loading weights from local file: {model_path}")
+                print(f"[AnimaTextEncoder] Loading weights from: {model_path}")
                 state_dict = load_file(model_path)
-                # Try to load the state dict (it may use different key prefixes)
                 try:
                     model.load_state_dict(state_dict, strict=False)
                 except Exception as e2:
-                    print(f"[AnimaTextEncoder] Non-strict load completed with: {e2}")
+                    print(f"[AnimaTextEncoder] Non-strict load: {e2}")
 
             model.eval()
             model.to(self.offload_device)
@@ -73,57 +78,55 @@ class AnimaTextEncoder:
     @torch.no_grad()
     @torch.inference_mode()
     def encode(self, text, max_length=256):
-        """Encode text into hidden states for Anima conditioning.
+        """Encode text using dual tokenizer approach.
 
         Returns:
             tuple: (hidden_states, token_ids) where
-                - hidden_states: tensor of shape (1, seq_len, hidden_dim)
-                - token_ids: tensor of token IDs (for the LLM adapter)
+                - hidden_states: [1, seq_len, 1024] from Qwen3 last layer
+                - token_ids: [1, seq_len] T5 token IDs for LLM adapter
         """
-        if self.model is None or self.tokenizer is None:
+        if self.model is None or self.qwen_tokenizer is None:
             return self._encode_empty()
 
         try:
-            # Tokenize
-            inputs = self.tokenizer(
+            # Step 1: Qwen3 tokenizer -> model -> hidden states
+            qwen_inputs = self.qwen_tokenizer(
                 text,
                 return_tensors="pt",
                 max_length=max_length,
                 padding="max_length",
                 truncation=True,
             )
-
-            input_ids = inputs["input_ids"]
-            attention_mask = inputs.get("attention_mask", None)
-
-            # Move model to compute device
-            self.model.to(self.device)
-
-            # Get hidden states
-            input_ids = input_ids.to(self.device)
+            input_ids = qwen_inputs["input_ids"].to(self.device)
+            attention_mask = qwen_inputs.get("attention_mask")
             if attention_mask is not None:
                 attention_mask = attention_mask.to(self.device)
 
+            self.model.to(self.device)
             outputs = self.model(
                 input_ids=input_ids,
                 attention_mask=attention_mask,
                 output_hidden_states=True,
             )
-
-            # Use the last hidden state as text embeddings
             hidden_states = outputs.hidden_states[-1]
-
-            # Move model back to offload device
             self.model.to(self.offload_device)
 
-            # Clamp token IDs to fit within the LLM adapter's embedding table (32128 entries).
-            # Qwen3's pad_token_id (151643) exceeds this range and would cause CUDA index errors.
-            # Replace out-of-range IDs with 0 (will be masked by attention_mask anyway).
-            clamped_ids = input_ids.cpu()
-            clamped_ids[clamped_ids >= 32128] = 0
+            # Step 2: T5 tokenizer -> token IDs for LLM adapter embedding(32128)
+            if self.t5_tokenizer is not None:
+                t5_inputs = self.t5_tokenizer(
+                    text,
+                    return_tensors="pt",
+                    max_length=max_length,
+                    padding="max_length",
+                    truncation=True,
+                )
+                token_ids = t5_inputs["input_ids"]
+            else:
+                # Fallback: clamped Qwen3 IDs (worse quality)
+                token_ids = input_ids.cpu()
+                token_ids[token_ids >= 32128] = 0
 
-            # Return hidden states and token IDs (both on CPU)
-            return hidden_states.cpu(), clamped_ids
+            return hidden_states.cpu(), token_ids.cpu()
 
         except Exception as e:
             print(f"[AnimaTextEncoder] Encoding failed: {e}")
@@ -133,7 +136,6 @@ class AnimaTextEncoder:
 
     def _encode_empty(self):
         """Return empty conditioning as fallback."""
-        # Anima uses 1024-dim cross-attention
         hidden_states = torch.zeros(1, 256, 1024)
         token_ids = torch.zeros(1, 256, dtype=torch.long)
         return hidden_states, token_ids

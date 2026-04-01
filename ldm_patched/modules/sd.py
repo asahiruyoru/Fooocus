@@ -462,6 +462,21 @@ def load_checkpoint(config_path=None, ckpt_path=None, output_vae=True, output_cl
 
     return (ldm_patched.modules.model_patcher.ModelPatcher(model, load_device=model_management.get_torch_device(), offload_device=offload_device), clip, vae)
 
+def _find_anima_vae(ckpt_path):
+    """Search for the Anima VAE file near the checkpoint."""
+    import os
+    ckpt_dir = os.path.dirname(ckpt_path)
+    base_dir = os.path.dirname(ckpt_dir)  # models/ parent
+    candidates = [
+        os.path.join(base_dir, 'vae', 'qwen_image_vae.safetensors'),
+        os.path.join(ckpt_dir, 'qwen_image_vae.safetensors'),
+    ]
+    for c in candidates:
+        if os.path.exists(c):
+            return c
+    return None
+
+
 def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, output_clipvision=False, embedding_directory=None, output_model=True, vae_filename_param=None):
     sd = ldm_patched.modules.utils.load_torch_file(ckpt_path)
     sd_keys = sd.keys()
@@ -505,7 +520,15 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
             if len(vae_sd) > 0:
                 vae = VAE(sd=vae_sd)
             else:
-                print("No VAE found in checkpoint. You may need to load a separate VAE file.")
+                # Auto-detect separate VAE file for models like Anima
+                auto_vae = _find_anima_vae(ckpt_path) if hasattr(model_config, '__class__') and model_config.__class__.__name__ == 'AnimaPreview2' else None
+                if auto_vae is not None:
+                    vae_sd = ldm_patched.modules.utils.load_torch_file(auto_vae)
+                    vae = VAE(sd=vae_sd)
+                    vae_filename = auto_vae
+                    print(f"Auto-loaded Anima VAE from: {auto_vae}")
+                else:
+                    print("No VAE found in checkpoint. You may need to load a separate VAE file.")
         else:
             vae_sd = ldm_patched.modules.utils.load_torch_file(vae_filename_param)
             vae_filename = vae_filename_param
