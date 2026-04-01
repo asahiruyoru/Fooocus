@@ -505,10 +505,12 @@ default_uov_method = get_config_item_or_set_default(
     validator=lambda x: x in modules.flags.uov_list,
     expected_type=str
 )
+minimum_controlnet_image_count = len(modules.flags.ip_list)
+
 default_controlnet_image_count = get_config_item_or_set_default(
     key='default_controlnet_image_count',
-    default_value=4,
-    validator=lambda x: isinstance(x, int) and x > 0,
+    default_value=minimum_controlnet_image_count,
+    validator=lambda x: isinstance(x, int) and x >= minimum_controlnet_image_count,
     expected_type=int
 )
 default_ip_images = {}
