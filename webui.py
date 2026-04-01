@@ -571,11 +571,32 @@ with shared.gradio_root:
                                                  elem_classes='performance_selections')
 
                 with gr.Accordion(label='Aspect Ratios', open=False, elem_id='aspect_ratios_accordion') as aspect_ratios_accordion:
+                    with gr.Row():
+                        custom_width = gr.Number(label='Width', value=1344, minimum=64, maximum=2048, step=8, precision=0)
+                        custom_height = gr.Number(label='Height', value=1344, minimum=64, maximum=2048, step=8, precision=0)
+
                     aspect_ratios_selection = gr.Radio(label='Aspect Ratios', show_label=False,
                                                        choices=modules.config.available_aspect_ratios_labels,
                                                        value=modules.config.default_aspect_ratio,
                                                        info='width × height',
                                                        elem_classes='aspect_ratios')
+
+                    def update_aspect_from_custom(w, h):
+                        w, h = int(w), int(h)
+                        label = f'{w}×{h}'
+                        return gr.update(value=label)
+
+                    def update_custom_from_aspect(selection):
+                        try:
+                            parts = selection.replace('×', ' ').split(' ')[:2]
+                            w, h = int(parts[0]), int(parts[1])
+                            return gr.update(value=w), gr.update(value=h)
+                        except (ValueError, IndexError):
+                            return gr.update(), gr.update()
+
+                    custom_width.change(update_aspect_from_custom, inputs=[custom_width, custom_height], outputs=[aspect_ratios_selection], queue=False, show_progress=False)
+                    custom_height.change(update_aspect_from_custom, inputs=[custom_width, custom_height], outputs=[aspect_ratios_selection], queue=False, show_progress=False)
+                    aspect_ratios_selection.change(update_custom_from_aspect, inputs=[aspect_ratios_selection], outputs=[custom_width, custom_height], queue=False, show_progress=False)
 
                     aspect_ratios_selection.change(lambda x: None, inputs=aspect_ratios_selection, queue=False, show_progress=False, _js='(x)=>{refresh_aspect_ratios_label(x);}')
                     shared.gradio_root.load(lambda x: None, inputs=aspect_ratios_selection, queue=False, show_progress=False, _js='(x)=>{refresh_aspect_ratios_label(x);}')
