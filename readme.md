@@ -37,6 +37,7 @@ Sadly the creator of Fooocus has gone dark multiple times for an extended amount
 * ✨ https://github.com/lllyasviel/Fooocus/pull/2032 - add inpaint mask generation functionality using rembg, incl. segmentation support
 * 🐛 ~~https://github.com/lllyasviel/Fooocus/pull/2332 - allow path_outputs to be outside of root dir~~
 * ✨ ~~https://github.com/lllyasviel/Fooocus/pull/2415 - add performance sdxl lightning (4 steps)~~
+* experimental Anima Preview2 support (DiT backend, Qwen3 text encoder, WanVAE)
 * and many more (90+) are already merged, see [my PRs](https://github.com/lllyasviel/Fooocus/pulls/mashb1t)
 
 ✨ = new feature<br>
@@ -190,9 +191,9 @@ Fooocus presents a rethinking of image generator designs. The software is offlin
 
 # Project Status: Limited Long-Term Support (LTS) with Bug Fixes Only
 
-The Fooocus project, built entirely on the **Stable Diffusion XL** architecture, is now in a state of limited long-term support (LTS) with bug fixes only. As the existing functionalities are considered as nearly free of programmartic issues (Thanks to [mashb1t](https://github.com/mashb1t)'s huge efforts), future updates will focus exclusively on addressing any bugs that may arise. 
+The Fooocus project remains primarily centered around the **Stable Diffusion XL** workflow and is in a state of limited long-term support (LTS) with bug fixes only. As the existing functionalities are considered as nearly free of programmartic issues (Thanks to [mashb1t](https://github.com/mashb1t)'s huge efforts), future updates will mostly focus on addressing any bugs that may arise.
 
-**There are no current plans to migrate to or incorporate newer model architectures.** However, this may change during time with the development of open-source community. For example, if the community converge to one single dominant method for image generation (which may really happen in half or one years given the current status), Fooocus may also migrate to that exact method.
+This fork also includes **experimental Anima Preview2 support**. Treat that path as an advanced feature rather than a fully stabilized replacement for the standard SDXL workflow.
 
 For those interested in utilizing newer models such as **Flux**, we recommend exploring alternative platforms such as [WebUI Forge](https://github.com/lllyasviel/stable-diffusion-webui-forge) (also from us), [ComfyUI/SwarmUI](https://github.com/comfyanonymous/ComfyUI). Additionally, several [excellent forks of Fooocus](https://github.com/lllyasviel/Fooocus?tab=readme-ov-file#forks) are available for experimentation.
 
