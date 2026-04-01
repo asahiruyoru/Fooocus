@@ -123,7 +123,12 @@ class Embedding(torch.nn.Embedding):
         return None
 
     def forward(self, input, out_dtype=None):
-        output = super().forward(input)
+        # Cast weight to input device/dtype (handles model offloading)
+        non_blocking = ldm_patched.modules.model_management.device_supports_non_blocking(input.device)
+        weight = self.weight.to(device=input.device, non_blocking=non_blocking)
+        output = torch.nn.functional.embedding(
+            input, weight, self.padding_idx, self.max_norm,
+            self.norm_type, self.scale_grad_by_freq, self.sparse)
         if out_dtype is not None:
             output = output.to(out_dtype)
         return output
