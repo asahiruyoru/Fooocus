@@ -1,5 +1,6 @@
 *.json
 !anime.json
+!anima_preview2.json
 !default.json
 !lcm.json
 !playground_v2.5.json

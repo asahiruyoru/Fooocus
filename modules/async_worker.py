@@ -701,6 +701,12 @@ def worker():
             if async_task.cfg_scale > 5.0:
                 print(f'[Anima] Overriding CFG: {async_task.cfg_scale} -> 4.0')
                 async_task.cfg_scale = 4.0
+            if async_task.overwrite_step <= 0 and async_task.steps > 30:
+                print(f'[Anima] Overriding implicit steps: {async_task.steps} -> 30')
+                async_task.steps = 30
+            if use_expansion:
+                print('[Anima] Disabling Fooocus V2 expansion.')
+                use_expansion = False
             async_task.refiner_model_name = 'None'
 
         pipeline.set_clip_skip(async_task.clip_skip)
