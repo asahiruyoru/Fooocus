@@ -57,6 +57,8 @@ user_path_config-deprecated.txt
 # Local work memos and debug files
 /docs/anima-preview2-*.md
 /docs/anima-preview2-*.ipynb
-/tests/test_anima_pipeline.py
 /test_vae.py
 /comfyui_tmp/
+!/docs/anima-preview2-colab.ipynb
+!/docs/anima-preview2-fixes.md
+!/docs/anima-preview2-empty-ipynb-runlog.md
