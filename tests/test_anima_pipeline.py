@@ -295,8 +295,45 @@ def test_vae_decode(vae, samples: torch.Tensor, output_path: str):
 
     img_array = (decoded[0].detach().cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
     img = Image.fromarray(img_array)
-    img.save(output_path)
+    return img
 
+
+def save_test_image_with_metadata(
+    img,
+    output_path: str,
+    *,
+    prompt: str,
+    negative_prompt: str,
+    steps: int,
+    width: int,
+    height: int,
+    cfg: float,
+    seed: int,
+    sampler: str,
+    scheduler: str,
+):
+    from modules.a1111_png_metadata import save_png_with_a1111_metadata
+
+    save_png_with_a1111_metadata(
+        img,
+        output_path,
+        prompt=prompt,
+        negative_prompt=negative_prompt,
+        steps=steps,
+        width=width,
+        height=height,
+        cfg=cfg,
+        seed=seed,
+        sampler=sampler,
+        scheduler=scheduler,
+        base_model_name="anima-preview2.safetensors",
+        vae_name="qwen_image_vae.safetensors",
+        performance="Quality" if steps >= 40 else None,
+        full_prompt=[prompt],
+        full_negative_prompt=[negative_prompt] if negative_prompt else [],
+    )
+
+    img_array = np.array(img)
     file_size_mb = os.path.getsize(output_path) / 1024 / 1024
     pixels = img_array.reshape(-1, 3).astype(float)
     r_std, g_std, b_std = pixels[:, 0].std(), pixels[:, 1].std(), pixels[:, 2].std()
@@ -422,7 +459,20 @@ def main() -> int:
     gc.collect()
     torch.cuda.empty_cache()
 
-    test_vae_decode(vae, samples, args.output)
+    img = test_vae_decode(vae, samples, args.output)
+    save_test_image_with_metadata(
+        img,
+        args.output,
+        prompt=args.prompt,
+        negative_prompt=args.negative_prompt,
+        steps=args.steps,
+        width=args.width,
+        height=args.height,
+        cfg=args.cfg,
+        seed=args.seed,
+        sampler=args.sampler,
+        scheduler=args.scheduler,
+    )
 
     total_t1 = time.time()
     print("\n" + "=" * 60)
