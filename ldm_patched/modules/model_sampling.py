@@ -3,16 +3,22 @@ from ldm_patched.ldm.modules.diffusionmodules.util import make_beta_schedule
 import math
 import numpy as np
 
+def reshape_sigma(sigma, noise_dim):
+    if sigma.nelement() == 1:
+        return sigma.view(())
+    return sigma.view(sigma.shape[:1] + (1,) * (noise_dim - 1))
+
 class EPS:
     def calculate_input(self, sigma, noise):
-        sigma = sigma.view(sigma.shape[:1] + (1,) * (noise.ndim - 1))
+        sigma = reshape_sigma(sigma, noise.ndim)
         return noise / (sigma ** 2 + self.sigma_data ** 2) ** 0.5
 
     def calculate_denoised(self, sigma, model_output, model_input):
-        sigma = sigma.view(sigma.shape[:1] + (1,) * (model_output.ndim - 1))
+        sigma = reshape_sigma(sigma, model_output.ndim)
         return model_input - model_output * sigma
 
     def noise_scaling(self, sigma, noise, latent_image, max_denoise=False):
+        sigma = reshape_sigma(sigma, noise.ndim)
         if max_denoise:
             noise = noise * torch.sqrt(1.0 + sigma ** 2.0)
         else:
@@ -26,12 +32,12 @@ class EPS:
 
 class V_PREDICTION(EPS):
     def calculate_denoised(self, sigma, model_output, model_input):
-        sigma = sigma.view(sigma.shape[:1] + (1,) * (model_output.ndim - 1))
+        sigma = reshape_sigma(sigma, model_output.ndim)
         return model_input * self.sigma_data ** 2 / (sigma ** 2 + self.sigma_data ** 2) - model_output * sigma * self.sigma_data / (sigma ** 2 + self.sigma_data ** 2) ** 0.5
 
 class EDM(V_PREDICTION):
     def calculate_denoised(self, sigma, model_output, model_input):
-        sigma = sigma.view(sigma.shape[:1] + (1,) * (model_output.ndim - 1))
+        sigma = reshape_sigma(sigma, model_output.ndim)
         return model_input * self.sigma_data ** 2 / (sigma ** 2 + self.sigma_data ** 2) + model_output * sigma * self.sigma_data / (sigma ** 2 + self.sigma_data ** 2) ** 0.5
 
 
@@ -214,14 +220,16 @@ class CONST:
         return noise
 
     def calculate_denoised(self, sigma, model_output, model_input):
-        sigma = sigma.view(sigma.shape[:1] + (1,) * (model_output.ndim - 1))
+        sigma = reshape_sigma(sigma, model_output.ndim)
         return model_input - model_output * sigma
 
     def noise_scaling(self, sigma, noise, latent_image, max_denoise=False):
+        sigma = reshape_sigma(sigma, noise.ndim)
         return sigma * noise + (1.0 - sigma) * latent_image
 
     def inverse_noise_scaling(self, sigma, latent):
-        return latent
+        sigma = reshape_sigma(sigma, latent.ndim)
+        return latent / (1.0 - sigma)
 
 
 def time_snr_shift(alpha, t):

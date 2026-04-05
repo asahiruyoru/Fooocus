@@ -100,7 +100,8 @@ def sample_hacked(model, noise, positive, negative, cfg, device, sampler, sigmas
     calculate_start_end_timesteps(model, negative)
     calculate_start_end_timesteps(model, positive)
 
-    if latent_image is not None:
+    if latent_image is not None and torch.count_nonzero(latent_image) > 0:
+        # Match the upstream flow-model behavior: keep the empty latent at zero.
         latent_image = model.process_latent_in(latent_image)
 
     if hasattr(model, 'extra_conds'):
