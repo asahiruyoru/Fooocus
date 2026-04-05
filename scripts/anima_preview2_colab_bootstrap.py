@@ -43,9 +43,11 @@ DEFAULT_OUTPUT_ROOT = Path("/content/anima_case_outputs")
 REQUIREMENTS_FILE = REPO_ROOT / "requirements_versions.txt"
 PRESET_FILE = REPO_ROOT / "presets" / "anima_preview2.json"
 PIPELINE_TEST_FILE = REPO_ROOT / "tests" / "test_anima_pipeline.py"
+WORKER_REPRO_FILE = REPO_ROOT / "scripts" / "anima_preview2_worker_repro.py"
 REQUIRED_REPO_FILES = [
     PRESET_FILE,
     PIPELINE_TEST_FILE,
+    WORKER_REPRO_FILE,
 ]
 
 # The Anima preset tracks checkpoint + VAE downloads, but not the text encoder.
@@ -84,6 +86,69 @@ DEFAULT_CASES = [
         "cfg": 4.0,
         "seed": 42,
     },
+]
+
+RICH_PROMPT = (
+    "1girl, solo, anime style, detailed face, long black hair, blue eyes, "
+    "school uniform, cherry blossom"
+)
+
+WORKER_PAIR_CASES = [
+    {
+        "runner": "worker",
+        "label": "worker_short_20_1024",
+        "prompt": "1girl",
+        "negative_prompt": "",
+        "steps": 20,
+        "width": 1024,
+        "height": 1024,
+        "cfg": 4.0,
+        "seed": 42,
+    },
+    {
+        "runner": "worker",
+        "label": "worker_rich_20_1024",
+        "prompt": RICH_PROMPT,
+        "negative_prompt": "",
+        "steps": 20,
+        "width": 1024,
+        "height": 1024,
+        "cfg": 4.0,
+        "seed": 42,
+    },
+]
+
+DIAGNOSTIC_CASES = [
+    {
+        "label": "plain_short_20_1024",
+        "prompt": "1girl",
+        "steps": 20,
+        "width": 1024,
+        "height": 1024,
+        "cfg": 4.0,
+        "seed": 42,
+    },
+    {
+        "label": "plain_short_20_1024_negempty",
+        "prompt": "1girl",
+        "negative_prompt": "",
+        "negative_mode": "encode",
+        "steps": 20,
+        "width": 1024,
+        "height": 1024,
+        "cfg": 4.0,
+        "seed": 42,
+    },
+    {
+        "label": "plain_rich_20_1024",
+        "prompt": RICH_PROMPT,
+        "steps": 20,
+        "width": 1024,
+        "height": 1024,
+        "cfg": 4.0,
+        "seed": 42,
+    },
+    *WORKER_PAIR_CASES,
 ]
 
 
@@ -201,11 +266,18 @@ def ensure_models(skip: bool) -> None:
 def build_cases(args: argparse.Namespace) -> list[dict[str, object]]:
     if args.profile == "baseline":
         return list(DEFAULT_CASES)
+    if args.profile == "diagnostic":
+        return list(DIAGNOSTIC_CASES)
+    if args.profile == "worker_pair":
+        return list(WORKER_PAIR_CASES)
 
     return [
         {
+            "runner": "worker" if args.profile == "worker_single" else "plain",
             "label": args.label,
             "prompt": args.prompt,
+            "negative_prompt": args.negative_prompt,
+            "negative_mode": args.negative_mode,
             "steps": args.steps,
             "width": args.width,
             "height": args.height,
@@ -229,7 +301,7 @@ def compute_image_metrics(image_path: Path) -> dict[str, float]:
     }
 
 
-def run_case(case: dict[str, object], output_root: Path) -> dict[str, object]:
+def run_plain_case(case: dict[str, object], output_root: Path) -> dict[str, object]:
     output_root.mkdir(parents=True, exist_ok=True)
     output_path = output_root / f"{case['label']}.png"
 
@@ -250,6 +322,72 @@ def run_case(case: dict[str, object], output_root: Path) -> dict[str, object]:
         str(case["seed"]),
         "--output",
         str(output_path),
+    ]
+    if case.get("negative_mode"):
+        cmd.extend(["--negative-mode", str(case["negative_mode"])])
+    if "negative_prompt" in case:
+        cmd.extend(["--negative-prompt", str(case.get("negative_prompt", ""))])
+
+    started = time.time()
+    try:
+        completed = run_capture(cmd, cwd=REPO_ROOT)
+        metrics = compute_image_metrics(output_path)
+        result = dict(case)
+        result.update(
+            {
+                "status": "ok",
+                "output_path": str(output_path),
+                "duration_sec": round(time.time() - started, 2),
+                "hf_metric": metrics["hf_metric"],
+                "color_std": metrics["color_std"],
+                "stdout_tail": completed.stdout.splitlines()[-20:],
+            }
+        )
+        print("RESULT", json.dumps(result, ensure_ascii=False))
+        return result
+    except subprocess.CalledProcessError as exc:
+        stdout = exc.stdout or ""
+        result = dict(case)
+        result.update(
+            {
+                "status": "error",
+                "output_path": str(output_path),
+                "duration_sec": round(time.time() - started, 2),
+                "returncode": exc.returncode,
+                "error": stdout.splitlines()[-20:],
+            }
+        )
+        print("RESULT", json.dumps(result, ensure_ascii=False))
+        return result
+
+
+def run_worker_case(case: dict[str, object], output_root: Path) -> dict[str, object]:
+    output_root.mkdir(parents=True, exist_ok=True)
+    output_path = output_root / f"{case['label']}.png"
+
+    cmd = [
+        sys.executable,
+        str(WORKER_REPRO_FILE),
+        "--label",
+        str(case["label"]),
+        "--prompt",
+        str(case["prompt"]),
+        "--negative-prompt",
+        str(case.get("negative_prompt", "")),
+        "--steps",
+        str(case["steps"]),
+        "--width",
+        str(case["width"]),
+        "--height",
+        str(case["height"]),
+        "--cfg",
+        str(case["cfg"]),
+        "--seed",
+        str(case["seed"]),
+        "--output",
+        str(output_path),
+        "--output-root",
+        str(output_root),
     ]
 
     started = time.time()
@@ -285,6 +423,12 @@ def run_case(case: dict[str, object], output_root: Path) -> dict[str, object]:
         return result
 
 
+def run_case(case: dict[str, object], output_root: Path) -> dict[str, object]:
+    if case.get("runner") == "worker":
+        return run_worker_case(case, output_root)
+    return run_plain_case(case, output_root)
+
+
 def write_summary(output_root: Path, results: list[dict[str, object]]) -> Path:
     summary_path = output_root / "compare_results.json"
     payload = {
@@ -305,12 +449,19 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--profile",
-        choices=["baseline", "single"],
+        choices=["baseline", "diagnostic", "single", "worker_pair", "worker_single"],
         default="baseline",
         help="Which case set to run after preparing the runtime.",
     )
     parser.add_argument("--label", default="plain_custom", help="Case label for --profile single.")
     parser.add_argument("--prompt", default="1girl", help="Prompt for --profile single.")
+    parser.add_argument("--negative-prompt", default="", help="Negative prompt for single profiles.")
+    parser.add_argument(
+        "--negative-mode",
+        choices=["zero", "encode"],
+        default="zero",
+        help="Negative conditioning mode for plain single profiles.",
+    )
     parser.add_argument("--steps", type=int, default=20, help="Steps for --profile single.")
     parser.add_argument("--width", type=int, default=1024, help="Width for --profile single.")
     parser.add_argument("--height", type=int, default=1024, help="Height for --profile single.")
