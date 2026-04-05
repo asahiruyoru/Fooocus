@@ -95,16 +95,25 @@ RICH_PROMPT = (
     "school uniform, cherry blossom"
 )
 
+DEFAULT_PRESET_PROMPT = (
+    "masterpiece, best quality, highres, safe, 1girl, solo, looking at "
+    "viewer, smile, long hair, detailed eyes, detailed face, clean lines, "
+    "smooth shading, soft lighting"
+)
+
+DEFAULT_PRESET_NEGATIVE_PROMPT = (
+    "worst quality, low quality, score_1, score_2, score_3, blurry, jpeg "
+    "artifacts, watermark, patreon logo, bad hands, bad fingers, bad eyes, "
+    "bad pupils, bad iris, 6 fingers, 6 toes"
+)
+
 OFFICIAL_TAG_PROMPT = (
     "masterpiece, best quality, highres, safe, 1girl, solo, long black hair, "
     "blue eyes, school uniform, cherry blossom, looking at viewer, blush, "
     "long hair, detailed face, clean lines, smooth shading"
 )
 
-OFFICIAL_NEGATIVE_PROMPT = (
-    "worst quality, low quality, score_1, score_2, score_3, blurry, "
-    "jpeg artifacts"
-)
+OFFICIAL_NEGATIVE_PROMPT = DEFAULT_PRESET_NEGATIVE_PROMPT
 
 WORKER_PAIR_CASES = [
     {
