@@ -167,19 +167,22 @@ def test_sampling(model_patcher, hidden_states, token_ids, steps=20,
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     dtype = torch.float16
 
-    pooled = hidden_states[:, 0, :].float()  # [1, 1024]
+    pooled = torch.zeros(1, 1024)             # [1, 1024]
     cond = hidden_states.to(dtype=dtype)      # [1, 256, 1024]
     t5_ids_tensor = token_ids.long()
-    if t5_ids_tensor.dim() == 1:
-        t5_ids_tensor = t5_ids_tensor.unsqueeze(0)
+    if t5_ids_tensor.dim() == 2:
+        t5_ids_tensor = t5_ids_tensor[0]
+    t5_weights = torch.ones_like(t5_ids_tensor, dtype=torch.float32)
 
     positive = [[cond, {
         "pooled_output": pooled,
         "t5xxl_ids": t5_ids_tensor,
+        "t5xxl_weights": t5_weights,
     }]]
     negative = [[torch.zeros_like(cond), {
         "pooled_output": torch.zeros_like(pooled),
-        "t5xxl_ids": torch.zeros_like(t5_ids_tensor),
+        "t5xxl_ids": t5_ids_tensor.clone(),
+        "t5xxl_weights": torch.zeros_like(t5_weights),
     }]]
 
     # サンプラー設定 (euler + simple, shift=3.0)
