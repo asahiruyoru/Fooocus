@@ -5,9 +5,16 @@ import numpy as np
 import torch
 from extras.GroundingDINO.util.inference import default_groundingdino
 from extras.sam.predictor import SamPredictor
-from rembg import remove, new_session
 from segment_anything import sam_model_registry
 from segment_anything.utils.amg import remove_small_regions
+
+try:
+    from rembg import remove, new_session
+    rembg_import_error = None
+except Exception as exc:
+    remove = None
+    new_session = None
+    rembg_import_error = exc
 
 
 class SAMOptions:
@@ -59,6 +66,8 @@ def generate_mask_from_image(image: np.ndarray, mask_model: str = 'sam', extras=
         image = image['image']
 
     if mask_model != 'sam' or sam_options is None:
+        if remove is None or new_session is None:
+            raise RuntimeError(f"rembg is unavailable: {rembg_import_error!r}")
         result = remove(
             image,
             session=new_session(mask_model, **extras),
