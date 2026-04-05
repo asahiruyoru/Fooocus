@@ -243,7 +243,7 @@ def test_vae_decode(vae, samples, output_path):
 
     # 画像保存
     from PIL import Image
-    img_array = (decoded[0].cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
+    img_array = (decoded[0].detach().cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
     img = Image.fromarray(img_array)
     img.save(output_path)
     file_size = os.path.getsize(output_path) / 1024 / 1024
