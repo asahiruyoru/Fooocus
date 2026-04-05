@@ -95,6 +95,8 @@ class StableDiffusionModel:
             loras_to_load.append((lora_filename, weight))
 
         self.unet_with_lora = self.unet.clone() if self.unet is not None else None
+        if self.unet_with_lora is not None:
+            self.unet_with_lora.model_file = getattr(self.unet, "model_file", None)
         self.clip_with_lora = self.clip.clone() if self.clip is not None else None
 
         for lora_filename, weight in loras_to_load:
