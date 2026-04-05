@@ -252,6 +252,7 @@ These are the current known-good defaults for the `anima_preview2` preset in thi
 * steps: `40`
 * CFG: `4.5`
 * aspect ratio: `1344x1344`
+* runtime flag for Colab launch: `--always-gpu` on current T4/L4-class runtimes
 * positive prompt default:
 
 ```text
@@ -399,7 +400,7 @@ Typical fresh Colab flow:
 git clone --depth 1 --branch feature/anima-preview2-integration https://github.com/asahiruyoru/Fooocus /content/Fooocus
 cd /content/Fooocus
 python scripts/anima_preview2_colab_bootstrap.py
-python entry_with_update.py --share --always-high-vram --preset anima_preview2
+python entry_with_update.py --share --always-gpu --preset anima_preview2
 ```
 
 What the bootstrap does:
@@ -415,7 +416,7 @@ You can also change the preset in the UI. Please be aware that this may lead to 
 
 Note that this Colab will disable refiner by default because Colab free's resources are relatively limited (and some "big" features like image prompt may cause free-tier Colab to disconnect). We make sure that basic text-to-image is always working on free-tier Colab.
 
-Using `--always-high-vram` shifts resource allocation from RAM to VRAM and achieves the overall best balance between performance, flexibility and stability on the default T4 instance. Please find more information [here](https://github.com/lllyasviel/Fooocus/pull/1710#issuecomment-1989185346).
+For the Anima Preview2 path in this fork, `--always-gpu` is currently the preferred Colab launch flag on T4/L4-class GPUs. In our worker-path benchmark at the recommended `40 steps / 1024x1024` settings it kept the text encoder and intermediate tensors on GPU, used about 11.4 GB peak VRAM, and ran slightly faster than `--always-high-vram`. If you raise settings further and hit VRAM pressure, fall back to `--always-high-vram`.
 
 Thanks to [camenduru](https://github.com/camenduru) for the template!
 
