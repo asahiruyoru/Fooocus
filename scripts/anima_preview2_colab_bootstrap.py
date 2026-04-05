@@ -1,0 +1,349 @@
+#!/usr/bin/env python3
+"""
+One-command Colab helper for a fresh Anima Preview2 investigation runtime.
+
+Typical usage on Colab after cloning the repo:
+
+    cd /content/Fooocus
+    python scripts/anima_preview2_colab_bootstrap.py
+
+This script is intentionally Colab-friendly:
+- installs Python requirements from requirements_versions.txt
+- downloads the required Anima model files
+- runs the plain headless repro cases that previously produced plain_*.png
+- writes images and compare_results.json under /content/anima_case_outputs
+
+You can also use it for a single custom case:
+
+    python scripts/anima_preview2_colab_bootstrap.py \
+        --profile single \
+        --label plain_custom \
+        --prompt "1girl" \
+        --steps 20 \
+        --width 1024 \
+        --height 1024
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shlex
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
+from urllib.request import urlretrieve
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_OUTPUT_ROOT = Path("/content/anima_case_outputs")
+REQUIREMENTS_FILE = REPO_ROOT / "requirements_versions.txt"
+PRESET_FILE = REPO_ROOT / "presets" / "anima_preview2.json"
+
+# The Anima preset tracks checkpoint + VAE downloads, but not the text encoder.
+CLIP_DOWNLOADS = {
+    "qwen_3_06b_base.safetensors": (
+        "https://huggingface.co/circlestone-labs/Anima/resolve/main/"
+        "split_files/text_encoders/qwen_3_06b_base.safetensors"
+    )
+}
+
+DEFAULT_CASES = [
+    {
+        "label": "plain_short_20_1024",
+        "prompt": "1girl",
+        "steps": 20,
+        "width": 1024,
+        "height": 1024,
+        "cfg": 4.0,
+        "seed": 42,
+    },
+    {
+        "label": "plain_short_60_1024",
+        "prompt": "1girl",
+        "steps": 60,
+        "width": 1024,
+        "height": 1024,
+        "cfg": 4.0,
+        "seed": 42,
+    },
+    {
+        "label": "plain_short_60_1344",
+        "prompt": "1girl",
+        "steps": 60,
+        "width": 1344,
+        "height": 1344,
+        "cfg": 4.0,
+        "seed": 42,
+    },
+]
+
+
+def run(cmd: list[str], cwd: Path | None = None, env: dict[str, str] | None = None) -> None:
+    print("$", shlex.join(cmd))
+    subprocess.run(cmd, cwd=str(cwd) if cwd else None, env=env, check=True)
+
+
+def run_capture(cmd: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
+    print("$", shlex.join(cmd))
+    completed = subprocess.run(
+        cmd,
+        cwd=str(cwd) if cwd else None,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=True,
+    )
+    if completed.stdout:
+        print(completed.stdout, end="" if completed.stdout.endswith("\n") else "\n")
+    return completed
+
+
+def repo_file(*parts: str) -> Path:
+    return REPO_ROOT.joinpath(*parts)
+
+
+def ensure_repo_root() -> None:
+    os.chdir(REPO_ROOT)
+    if str(REPO_ROOT) not in sys.path:
+        sys.path.insert(0, str(REPO_ROOT))
+
+
+def show_runtime_info() -> None:
+    print("=" * 60)
+    print("Anima Preview2 Colab Bootstrap")
+    print("=" * 60)
+    print("repo_root =", REPO_ROOT)
+    print("python =", sys.executable)
+    print("cwd =", Path.cwd())
+    try:
+        import torch
+
+        print("torch.cuda.is_available =", torch.cuda.is_available())
+        if torch.cuda.is_available():
+            print("device =", torch.cuda.get_device_name(0))
+    except Exception as exc:  # pragma: no cover - informational only
+        print("torch inspection failed:", repr(exc))
+
+
+def ensure_python_requirements(skip: bool) -> None:
+    if skip:
+        print("Skipping Python requirements installation.")
+        return
+
+    run([sys.executable, "-m", "pip", "install", "-q", "-r", str(REQUIREMENTS_FILE)], cwd=REPO_ROOT)
+
+
+def load_anima_download_plan() -> list[tuple[Path, str]]:
+    with PRESET_FILE.open(encoding="utf-8") as handle:
+        preset = json.load(handle)
+
+    plan = []
+    for file_name, url in preset.get("checkpoint_downloads", {}).items():
+        plan.append((repo_file("models", "checkpoints", file_name), url))
+    for file_name, url in CLIP_DOWNLOADS.items():
+        plan.append((repo_file("models", "clip", file_name), url))
+    for file_name, url in preset.get("vae_downloads", {}).items():
+        plan.append((repo_file("models", "vae", file_name), url))
+    return plan
+
+
+def download_with_python(url: str, destination: Path) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    print(f"Downloading with urllib: {url}")
+    urlretrieve(url, destination)
+
+
+def ensure_models(skip: bool) -> None:
+    if skip:
+        print("Skipping model download.")
+        return
+
+    for destination, url in load_anima_download_plan():
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        if destination.exists() and destination.stat().st_size > 0:
+            size_gb = destination.stat().st_size / 1024 ** 3
+            print(f"Already present: {destination} ({size_gb:.2f} GB)")
+            continue
+
+        if shutil.which("wget"):
+            run(["wget", "-nv", "-O", str(destination), url], cwd=destination.parent)
+        else:  # pragma: no cover - Colab normally has wget
+            download_with_python(url, destination)
+
+    print("\nModel locations:")
+    for destination, _ in load_anima_download_plan():
+        size_gb = destination.stat().st_size / 1024 ** 3 if destination.exists() else 0
+        print(f"  {destination}: {size_gb:.2f} GB")
+
+
+def build_cases(args: argparse.Namespace) -> list[dict[str, object]]:
+    if args.profile == "baseline":
+        return list(DEFAULT_CASES)
+
+    return [
+        {
+            "label": args.label,
+            "prompt": args.prompt,
+            "steps": args.steps,
+            "width": args.width,
+            "height": args.height,
+            "cfg": args.cfg,
+            "seed": args.seed,
+        }
+    ]
+
+
+def compute_image_metrics(image_path: Path) -> dict[str, float]:
+    import numpy as np
+    from PIL import Image
+
+    arr = np.array(Image.open(image_path).convert("RGB"), dtype=np.float32) / 255.0
+    gray = arr.mean(axis=2)
+    vertical = float(abs(gray[1:] - gray[:-1]).mean()) if gray.shape[0] > 1 else 0.0
+    horizontal = float(abs(gray[:, 1:] - gray[:, :-1]).mean()) if gray.shape[1] > 1 else 0.0
+    return {
+        "hf_metric": (vertical + horizontal) / 2.0,
+        "color_std": float(arr.std()),
+    }
+
+
+def run_case(case: dict[str, object], output_root: Path) -> dict[str, object]:
+    output_root.mkdir(parents=True, exist_ok=True)
+    output_path = output_root / f"{case['label']}.png"
+
+    cmd = [
+        sys.executable,
+        str(repo_file("tests", "test_anima_pipeline.py")),
+        "--prompt",
+        str(case["prompt"]),
+        "--steps",
+        str(case["steps"]),
+        "--width",
+        str(case["width"]),
+        "--height",
+        str(case["height"]),
+        "--cfg",
+        str(case["cfg"]),
+        "--seed",
+        str(case["seed"]),
+        "--output",
+        str(output_path),
+    ]
+
+    started = time.time()
+    try:
+        completed = run_capture(cmd, cwd=REPO_ROOT)
+        metrics = compute_image_metrics(output_path)
+        result = dict(case)
+        result.update(
+            {
+                "status": "ok",
+                "output_path": str(output_path),
+                "duration_sec": round(time.time() - started, 2),
+                "hf_metric": metrics["hf_metric"],
+                "color_std": metrics["color_std"],
+                "stdout_tail": completed.stdout.splitlines()[-20:],
+            }
+        )
+        print("RESULT", json.dumps(result, ensure_ascii=False))
+        return result
+    except subprocess.CalledProcessError as exc:
+        stdout = exc.stdout or ""
+        result = dict(case)
+        result.update(
+            {
+                "status": "error",
+                "output_path": str(output_path),
+                "duration_sec": round(time.time() - started, 2),
+                "returncode": exc.returncode,
+                "error": stdout.splitlines()[-20:],
+            }
+        )
+        print("RESULT", json.dumps(result, ensure_ascii=False))
+        return result
+
+
+def write_summary(output_root: Path, results: list[dict[str, object]]) -> Path:
+    summary_path = output_root / "compare_results.json"
+    payload = {
+        "repo_root": str(REPO_ROOT),
+        "output_root": str(output_root),
+        "results": results,
+    }
+    summary_path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    return summary_path
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Fresh Colab bootstrap for Anima Preview2 headless reproduction."
+    )
+    parser.add_argument(
+        "--profile",
+        choices=["baseline", "single"],
+        default="baseline",
+        help="Which case set to run after preparing the runtime.",
+    )
+    parser.add_argument("--label", default="plain_custom", help="Case label for --profile single.")
+    parser.add_argument("--prompt", default="1girl", help="Prompt for --profile single.")
+    parser.add_argument("--steps", type=int, default=20, help="Steps for --profile single.")
+    parser.add_argument("--width", type=int, default=1024, help="Width for --profile single.")
+    parser.add_argument("--height", type=int, default=1024, help="Height for --profile single.")
+    parser.add_argument("--cfg", type=float, default=4.0, help="CFG for --profile single.")
+    parser.add_argument("--seed", type=int, default=42, help="Seed for --profile single.")
+    parser.add_argument(
+        "--output-root",
+        default=str(DEFAULT_OUTPUT_ROOT),
+        help="Directory for generated images and compare_results.json.",
+    )
+    parser.add_argument(
+        "--skip-requirements",
+        action="store_true",
+        help="Do not run pip install -r requirements_versions.txt.",
+    )
+    parser.add_argument(
+        "--skip-downloads",
+        action="store_true",
+        help="Do not download Anima model files.",
+    )
+    parser.add_argument(
+        "--prepare-only",
+        action="store_true",
+        help="Only prepare the runtime. Do not run image generation cases.",
+    )
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = parse_args()
+    ensure_repo_root()
+    show_runtime_info()
+    ensure_python_requirements(args.skip_requirements)
+    ensure_models(args.skip_downloads)
+
+    if args.prepare_only:
+        print("Preparation finished. Cases were not executed.")
+        return 0
+
+    output_root = Path(args.output_root)
+    results = [run_case(case, output_root) for case in build_cases(args)]
+    summary_path = write_summary(output_root, results)
+
+    print("\nSummary file:", summary_path)
+    print("Generated files:")
+    for result in results:
+        print(" ", result.get("status"), result.get("output_path"))
+
+    failures = [result for result in results if result.get("status") != "ok"]
+    return 1 if failures else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
