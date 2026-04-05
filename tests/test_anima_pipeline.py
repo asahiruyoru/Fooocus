@@ -147,8 +147,23 @@ def test_model_loading(ckpt_path):
     return model_patcher, vae
 
 
+def build_conditioning(hidden_states, token_ids, *, dtype=torch.float16):
+    pooled = torch.zeros(1, 1024)
+    cond = hidden_states.to(dtype=dtype)
+    t5_ids_tensor = token_ids.long()
+    if t5_ids_tensor.dim() == 2:
+        t5_ids_tensor = t5_ids_tensor[0]
+    t5_weights = torch.ones_like(t5_ids_tensor, dtype=torch.float32)
+    return [cond, {
+        "pooled_output": pooled,
+        "t5xxl_ids": t5_ids_tensor,
+        "t5xxl_weights": t5_weights,
+    }]
+
+
 def test_sampling(model_patcher, hidden_states, token_ids, steps=20,
-                  width=1024, height=1024, cfg=4.0, seed=42):
+                  width=1024, height=1024, cfg=4.0, seed=42,
+                  negative_hidden_states=None, negative_token_ids=None):
     """Step 3: 拡散サンプリング"""
     print(f"\n=== Step 3: 拡散サンプリング ({steps} steps) ===")
 
@@ -167,23 +182,22 @@ def test_sampling(model_patcher, hidden_states, token_ids, steps=20,
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     dtype = torch.float16
 
-    pooled = torch.zeros(1, 1024)             # [1, 1024]
-    cond = hidden_states.to(dtype=dtype)      # [1, 256, 1024]
-    t5_ids_tensor = token_ids.long()
-    if t5_ids_tensor.dim() == 2:
-        t5_ids_tensor = t5_ids_tensor[0]
-    t5_weights = torch.ones_like(t5_ids_tensor, dtype=torch.float32)
-
-    positive = [[cond, {
-        "pooled_output": pooled,
-        "t5xxl_ids": t5_ids_tensor,
-        "t5xxl_weights": t5_weights,
-    }]]
-    negative = [[torch.zeros_like(cond), {
-        "pooled_output": torch.zeros_like(pooled),
-        "t5xxl_ids": t5_ids_tensor.clone(),
-        "t5xxl_weights": torch.zeros_like(t5_weights),
-    }]]
+    positive = [build_conditioning(hidden_states, token_ids, dtype=dtype)]
+    if negative_hidden_states is None or negative_token_ids is None:
+        positive_cond, positive_meta = positive[0]
+        negative = [[torch.zeros_like(positive_cond), {
+            "pooled_output": torch.zeros_like(positive_meta["pooled_output"]),
+            "t5xxl_ids": positive_meta["t5xxl_ids"].clone(),
+            "t5xxl_weights": torch.zeros_like(positive_meta["t5xxl_weights"]),
+        }]]
+        print("  negative path: zero-filled conditioning")
+    else:
+        negative = [build_conditioning(
+            negative_hidden_states,
+            negative_token_ids,
+            dtype=dtype,
+        )]
+        print("  negative path: encoded prompt conditioning")
 
     # サンプラー設定 (euler + simple, shift=3.0)
     print(f"  サンプラー: euler, スケジューラ: simple, CFG: {cfg}")
@@ -277,6 +291,10 @@ def main():
     parser.add_argument("--cfg", type=float, default=4.0, help="CFG スケール")
     parser.add_argument("--seed", type=int, default=42, help="乱数シード")
     parser.add_argument("--output", default=None, help="出力画像パス")
+    parser.add_argument("--negative-prompt", default="",
+                        help="negative prompt used when --negative-mode encode")
+    parser.add_argument("--negative-mode", choices=["zero", "encode"], default="zero",
+                        help="how to build the negative conditioning path")
     args = parser.parse_args()
 
     fooocus_root, original_argv = setup_paths()
@@ -307,6 +325,18 @@ def main():
     encoder, hidden_states, token_ids = test_text_encoder(
         paths['clip'], args.prompt, max_length=256
     )
+    negative_hidden_states = None
+    negative_token_ids = None
+    if args.negative_mode == "encode":
+        print("\n=== Step 1b: negative text encoder ===")
+        negative_hidden_states, negative_token_ids = encoder.encode(
+            args.negative_prompt, max_length=256
+        )
+        print(f"  negative prompt: '{args.negative_prompt}'")
+        print(
+            f"  negative hidden_states std={negative_hidden_states.float().std():.4f}, "
+            f"token_count={negative_token_ids.nonzero().shape[0]}"
+        )
 
     # Qwen3 モデルをオフロード（VRAM 節約）
     if encoder.model is not None:
@@ -323,6 +353,8 @@ def main():
         model_patcher, hidden_states, token_ids,
         steps=args.steps, width=args.width, height=args.height,
         cfg=args.cfg, seed=args.seed,
+        negative_hidden_states=negative_hidden_states,
+        negative_token_ids=negative_token_ids,
     )
 
     # model_patcher の拡散モデルはすでに CPU (test_sampling 内でオフロード済み)
