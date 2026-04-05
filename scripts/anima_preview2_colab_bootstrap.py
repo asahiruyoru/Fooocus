@@ -27,6 +27,7 @@ You can also use it for a single custom case:
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import shlex
@@ -41,6 +42,7 @@ from urllib.request import urlretrieve
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT_ROOT = Path("/content/anima_case_outputs")
 DEFAULT_COMFYUI_ROOT = Path("/content/ComfyUI")
+BUNDLED_COMFYUI_ROOT = REPO_ROOT / "comfyui_tmp"
 COMFYUI_REPO_URL = "https://github.com/comfyanonymous/ComfyUI.git"
 REQUIREMENTS_FILE = REPO_ROOT / "requirements_versions.txt"
 PRESET_FILE = REPO_ROOT / "presets" / "anima_preview2.json"
@@ -345,24 +347,59 @@ def ensure_models(skip: bool) -> None:
         print(f"  {destination}: {size_gb:.2f} GB")
 
 
-def ensure_comfyui_reference() -> Path:
-    comfy_root = DEFAULT_COMFYUI_ROOT
+def _comfy_root_has_required_modules(comfy_root: Path) -> bool:
     comfy_sd = comfy_root / "comfy" / "sd.py"
+    if not comfy_sd.exists():
+        return False
 
-    if comfy_sd.exists():
-        print(f"Using existing ComfyUI reference checkout: {comfy_root}")
-    else:
-        comfy_root.parent.mkdir(parents=True, exist_ok=True)
-        run(
-            [
-                "git",
-                "clone",
-                "--depth",
-                "1",
-                COMFYUI_REPO_URL,
-                str(comfy_root),
-            ],
-            cwd=comfy_root.parent,
+    root_str = str(comfy_root)
+    added = False
+    if root_str not in sys.path:
+        sys.path.insert(0, root_str)
+        added = True
+
+    try:
+        return importlib.util.find_spec("comfy_aimdo.host_buffer") is not None
+    finally:
+        if added:
+            try:
+                sys.path.remove(root_str)
+            except ValueError:
+                pass
+
+
+def ensure_comfyui_reference() -> Path:
+    candidate_roots = [BUNDLED_COMFYUI_ROOT, DEFAULT_COMFYUI_ROOT]
+
+    for comfy_root in candidate_roots:
+        if _comfy_root_has_required_modules(comfy_root):
+            source = "bundled" if comfy_root == BUNDLED_COMFYUI_ROOT else "existing"
+            print(f"Using {source} ComfyUI reference checkout: {comfy_root}")
+            os.environ["FOOOCUS_ANIMA_COMFY_ROOT"] = str(comfy_root)
+            os.environ["ANIMA_COMFY_ROOT"] = str(comfy_root)
+            print(f"FOOOCUS_ANIMA_COMFY_ROOT={comfy_root}")
+            return comfy_root
+        if (comfy_root / "comfy" / "sd.py").exists():
+            print(f"Skipping incomplete ComfyUI reference root: {comfy_root}")
+
+    comfy_root = DEFAULT_COMFYUI_ROOT
+    comfy_root.parent.mkdir(parents=True, exist_ok=True)
+    run(
+        [
+            "git",
+            "clone",
+            "--depth",
+            "1",
+            COMFYUI_REPO_URL,
+            str(comfy_root),
+        ],
+        cwd=comfy_root.parent,
+    )
+
+    if not _comfy_root_has_required_modules(comfy_root):
+        raise RuntimeError(
+            "Cloned /content/ComfyUI but required comfy_aimdo modules were still missing. "
+            "Use the bundled comfyui_tmp reference checkout from this branch."
         )
 
     os.environ["FOOOCUS_ANIMA_COMFY_ROOT"] = str(comfy_root)

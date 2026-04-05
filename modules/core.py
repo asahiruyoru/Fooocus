@@ -166,14 +166,20 @@ def _get_anima_reference_comfy_root():
     fooocus_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     candidates = [
         os.environ.get("FOOOCUS_ANIMA_COMFY_ROOT"),
-        "/content/ComfyUI",
         os.path.join(fooocus_root, "comfyui_tmp"),
+        "/content/ComfyUI",
     ]
     for root in candidates:
         if not root:
             continue
-        if os.path.exists(os.path.join(root, "comfy", "sd.py")):
-            return root
+        if not os.path.exists(os.path.join(root, "comfy", "sd.py")):
+            continue
+        if not (
+            os.path.exists(os.path.join(root, "comfy_aimdo"))
+            or importlib.util.find_spec("comfy_aimdo.host_buffer") is not None
+        ):
+            continue
+        return root
     return None
 
 
