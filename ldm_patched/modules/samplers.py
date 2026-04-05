@@ -6,7 +6,9 @@ from ldm_patched.modules import model_management
 import math
 
 def get_area_and_mult(conds, x_in, timestep_in):
-    area = (x_in.shape[2], x_in.shape[3], 0, 0)
+    spatial_h = x_in.shape[-2]
+    spatial_w = x_in.shape[-1]
+    area = (spatial_h, spatial_w, 0, 0)
     strength = 1.0
 
     if 'timestep_start' in conds:
@@ -22,7 +24,10 @@ def get_area_and_mult(conds, x_in, timestep_in):
     if 'strength' in conds:
         strength = conds['strength']
 
-    input_x = x_in[:,:,area[2]:area[0] + area[2],area[3]:area[1] + area[3]]
+    if x_in.ndim == 5:
+        input_x = x_in[:, :, :, area[2]:area[0] + area[2], area[3]:area[1] + area[3]]
+    else:
+        input_x = x_in[:, :, area[2]:area[0] + area[2], area[3]:area[1] + area[3]]
     if 'mask' in conds:
         # Scale the mask to the size of the input
         # The mask should have been resized as we began the sampling process
@@ -30,10 +35,13 @@ def get_area_and_mult(conds, x_in, timestep_in):
         if "mask_strength" in conds:
             mask_strength = conds["mask_strength"]
         mask = conds['mask']
-        assert(mask.shape[1] == x_in.shape[2])
-        assert(mask.shape[2] == x_in.shape[3])
+        assert(mask.shape[1] == spatial_h)
+        assert(mask.shape[2] == spatial_w)
         mask = mask[:,area[2]:area[0] + area[2],area[3]:area[1] + area[3]] * mask_strength
-        mask = mask.unsqueeze(1).repeat(input_x.shape[0] // mask.shape[0], input_x.shape[1], 1, 1)
+        if x_in.ndim == 5:
+            mask = mask.unsqueeze(1).unsqueeze(2).repeat(input_x.shape[0] // mask.shape[0], input_x.shape[1], input_x.shape[2], 1, 1)
+        else:
+            mask = mask.unsqueeze(1).repeat(input_x.shape[0] // mask.shape[0], input_x.shape[1], 1, 1)
     else:
         mask = torch.ones_like(input_x)
     mult = mask * strength
@@ -42,16 +50,16 @@ def get_area_and_mult(conds, x_in, timestep_in):
         rr = 8
         if area[2] != 0:
             for t in range(rr):
-                mult[:,:,t:1+t,:] *= ((1.0/rr) * (t + 1))
-        if (area[0] + area[2]) < x_in.shape[2]:
+                mult[..., t:1+t, :] *= ((1.0/rr) * (t + 1))
+        if (area[0] + area[2]) < spatial_h:
             for t in range(rr):
-                mult[:,:,area[0] - 1 - t:area[0] - t,:] *= ((1.0/rr) * (t + 1))
+                mult[..., area[0] - 1 - t:area[0] - t, :] *= ((1.0/rr) * (t + 1))
         if area[3] != 0:
             for t in range(rr):
-                mult[:,:,:,t:1+t] *= ((1.0/rr) * (t + 1))
-        if (area[1] + area[3]) < x_in.shape[3]:
+                mult[..., :, t:1+t] *= ((1.0/rr) * (t + 1))
+        if (area[1] + area[3]) < spatial_w:
             for t in range(rr):
-                mult[:,:,:,area[1] - 1 - t:area[1] - t] *= ((1.0/rr) * (t + 1))
+                mult[..., :, area[1] - 1 - t:area[1] - t] *= ((1.0/rr) * (t + 1))
 
     conditioning = {}
     model_conds = conds["model_conds"]
@@ -223,12 +231,24 @@ def calc_cond_uncond_batch(model, cond, uncond, x_in, timestep, model_options):
         del input_x
 
         for o in range(batch_chunks):
-            if cond_or_uncond[o] == COND:
-                out_cond[:,:,area[o][2]:area[o][0] + area[o][2],area[o][3]:area[o][1] + area[o][3]] += output[o] * mult[o]
-                out_count[:,:,area[o][2]:area[o][0] + area[o][2],area[o][3]:area[o][1] + area[o][3]] += mult[o]
-            else:
-                out_uncond[:,:,area[o][2]:area[o][0] + area[o][2],area[o][3]:area[o][1] + area[o][3]] += output[o] * mult[o]
-                out_uncond_count[:,:,area[o][2]:area[o][0] + area[o][2],area[o][3]:area[o][1] + area[o][3]] += mult[o]
+            target = out_cond if cond_or_uncond[o] == COND else out_uncond
+            target_count = out_count if cond_or_uncond[o] == COND else out_uncond_count
+            area_slice = area[o]
+            if area_slice is None:
+                target += output[o] * mult[o]
+                target_count += mult[o]
+                continue
+
+            dims = len(area_slice) // 2
+            start_dim = target.dim() - dims
+            narrowed_target = target
+            narrowed_count = target_count
+            for dim in range(dims):
+                narrowed_target = narrowed_target.narrow(start_dim + dim, area_slice[dims + dim], area_slice[dim])
+                narrowed_count = narrowed_count.narrow(start_dim + dim, area_slice[dims + dim], area_slice[dim])
+
+            narrowed_target += output[o] * mult[o]
+            narrowed_count += mult[o]
         del mult
 
     out_cond /= out_count
@@ -488,8 +508,8 @@ def encode_model_conds(model_function, conds, noise, device, prompt_type, **kwar
         params = x.copy()
         params["device"] = device
         params["noise"] = noise
-        params["width"] = params.get("width", noise.shape[3] * 8)
-        params["height"] = params.get("height", noise.shape[2] * 8)
+        params["width"] = params.get("width", noise.shape[-1] * 8)
+        params["height"] = params.get("height", noise.shape[-2] * 8)
         params["prompt_type"] = params.get("prompt_type", prompt_type)
         for k in kwargs:
             if k not in params:
@@ -541,20 +561,20 @@ class KSAMPLER(Sampler):
         else:
             model_k.noise = noise
 
-        if self.max_denoise(model_wrap, sigmas):
-            noise = noise * torch.sqrt(1.0 + sigmas[0] ** 2.0)
-        else:
-            noise = noise * sigmas[0]
+        noise = model_wrap.inner_model.model_sampling.noise_scaling(
+            sigmas[0],
+            noise,
+            latent_image,
+            self.max_denoise(model_wrap, sigmas),
+        )
 
         k_callback = None
         total_steps = len(sigmas) - 1
         if callback is not None:
             k_callback = lambda x: callback(x["i"], x["denoised"], x["x"], total_steps)
 
-        if latent_image is not None:
-            noise += latent_image
-
         samples = self.sampler_function(model_k, noise, sigmas, extra_args=extra_args, callback=k_callback, disable=disable_pbar, **self.extra_options)
+        samples = model_wrap.inner_model.model_sampling.inverse_noise_scaling(sigmas[-1], samples)
         return samples
 
 
@@ -587,15 +607,15 @@ def sample(model, noise, positive, negative, cfg, device, sampler, sigmas, model
     positive = positive[:]
     negative = negative[:]
 
-    resolve_areas_and_cond_masks(positive, noise.shape[2], noise.shape[3], device)
-    resolve_areas_and_cond_masks(negative, noise.shape[2], noise.shape[3], device)
+    resolve_areas_and_cond_masks(positive, noise.shape[-2], noise.shape[-1], device)
+    resolve_areas_and_cond_masks(negative, noise.shape[-2], noise.shape[-1], device)
 
     model_wrap = wrap_model(model)
 
     calculate_start_end_timesteps(model, negative)
     calculate_start_end_timesteps(model, positive)
 
-    if latent_image is not None:
+    if latent_image is not None and torch.count_nonzero(latent_image) > 0:
         latent_image = model.process_latent_in(latent_image)
 
     if hasattr(model, 'extra_conds'):

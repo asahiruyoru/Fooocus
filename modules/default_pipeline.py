@@ -200,16 +200,27 @@ def anima_clip_encode(texts):
     encoder = get_anima_text_encoder()
     combined_text = ' '.join(texts) if isinstance(texts, list) else str(texts)
 
-    hidden_states, token_ids = encoder.encode(combined_text)
+    encoded = encoder.encode(combined_text)
+    if len(encoded) == 2:
+        hidden_states, token_ids = encoded
+        token_weights = None
+    else:
+        hidden_states, token_ids, token_weights = encoded
 
     # Return conditioning in the format expected by the pipeline:
     # [[cross_attn_tensor, {"pooled_output": pooled, "t5xxl_ids": ids, "t5xxl_weights": weights}]]
     pooled = torch.zeros(1, 1024)  # Anima doesn't use pooled output for ADM
-    
+
     # model_base.Anima.extra_conds expects t5xxl_ids and t5xxl_weights
-    t5xxl_ids = token_ids[0].to(torch.int)  # Shape (seq_len,)
-    t5xxl_weights = torch.ones_like(t5xxl_ids, dtype=torch.float)
-    
+    t5xxl_ids = token_ids[0] if token_ids.dim() > 1 else token_ids
+    if token_weights is None:
+        t5xxl_weights = torch.ones_like(t5xxl_ids, dtype=torch.float)
+    else:
+        t5xxl_weights = token_weights[0] if token_weights.dim() > 1 else token_weights
+
+    t5xxl_ids = t5xxl_ids.to(torch.int)
+    t5xxl_weights = t5xxl_weights.to(torch.float)
+
     return [[hidden_states, {"pooled_output": pooled, "t5xxl_ids": t5xxl_ids, "t5xxl_weights": t5xxl_weights}]]
 
 
@@ -406,9 +417,13 @@ def process_diffusion(positive_cond, negative_cond, steps, switch, width, height
 
     if latent is None:
         if is_anima_model():
-            # Anima uses 16-channel latents (Wan21 format)
-            latent_channels = 16
-            initial_latent = {'samples': torch.zeros([1, latent_channels, height // 8, width // 8])}
+            latent_format = getattr(final_unet.model, "latent_format", None)
+            latent_channels = getattr(latent_format, "latent_channels", 16)
+            latent_dimensions = getattr(latent_format, "latent_dimensions", 2)
+            if latent_dimensions == 3:
+                initial_latent = {'samples': torch.zeros([1, latent_channels, 1, height // 8, width // 8])}
+            else:
+                initial_latent = {'samples': torch.zeros([1, latent_channels, height // 8, width // 8])}
         else:
             initial_latent = core.generate_empty_latent(width=width, height=height, batch_size=1)
     else:
