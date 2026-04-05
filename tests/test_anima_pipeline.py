@@ -152,8 +152,7 @@ def test_sampling(model_patcher, hidden_states, token_ids, steps=20,
     """Step 3: 拡散サンプリング"""
     print(f"\n=== Step 3: 拡散サンプリング ({steps} steps) ===")
 
-    import ldm_patched.modules.samplers as samplers_module
-    import ldm_patched.modules.model_sampling
+    import ldm_patched.modules.sample as sample_module
 
     model = model_patcher.model
     dm = model.diffusion_model
@@ -185,25 +184,22 @@ def test_sampling(model_patcher, hidden_states, token_ids, steps=20,
 
     # サンプラー設定 (euler + simple, shift=3.0)
     print(f"  サンプラー: euler, スケジューラ: simple, CFG: {cfg}")
-    sampler = samplers_module.KSampler(
-        model_patcher,
-        steps=steps,
-        device=device,
-        sampler="euler",
-        scheduler="simple",
-        denoise=1.0,
-    )
 
     # サンプリング実行
-    dm.to(device)
     t0 = time.time()
-    samples = sampler.sample(
+    samples = sample_module.sample(
+        model=model_patcher,
         noise=noise,
+        steps=steps,
+        cfg=cfg,
+        sampler_name="euler",
+        scheduler="simple",
         positive=positive,
         negative=negative,
-        cfg=cfg,
         latent_image=torch.zeros_like(noise),
+        denoise=1.0,
         force_full_denoise=True,
+        seed=seed,
     )
     t1 = time.time()
 
