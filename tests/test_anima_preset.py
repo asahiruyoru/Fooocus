@@ -19,6 +19,8 @@ class TestAnimaPreset(unittest.TestCase):
         self.assertEqual(preset['default_performance'], 'Quality')
         self.assertEqual(preset['default_advanced_checkbox'], True)
         self.assertEqual(preset['default_image_number'], 32)
+        self.assertEqual(preset['default_save_metadata_to_images'], True)
+        self.assertEqual(preset['default_metadata_scheme'], 'a1111')
         self.assertEqual(
             preset['default_prompt'],
             'masterpiece, best quality, highres, safe, 1girl, solo, looking at viewer, smile, '
