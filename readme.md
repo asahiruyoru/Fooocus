@@ -195,7 +195,76 @@ The Fooocus project remains primarily centered around the **Stable Diffusion XL*
 
 This fork also includes **experimental Anima Preview2 support**. Treat that path as an advanced feature rather than a fully stabilized replacement for the standard SDXL workflow.
 
-For a fresh Colab runtime that needs the Anima model downloads plus the headless `plain_*` repro cases, run `python scripts/anima_preview2_colab_bootstrap.py` after cloning the repo.
+For a fresh Colab runtime that needs the Anima model downloads plus the headless repro cases, run `python scripts/anima_preview2_colab_bootstrap.py` after cloning the repo.
+
+## Experimental Anima Preview2 Support
+
+This branch contains a targeted integration for **CircleStone Labs' Anima Preview2** model family. It is meant to make Anima usable from the normal Fooocus Gradio app and from a fresh Colab runtime without manually rebuilding the whole pipeline each time.
+
+### What changed in Fooocus
+
+The Anima work in this fork is mainly about making Fooocus' worker path behave correctly for the Preview2 checkpoint:
+
+* added the required **DiT / Qwen3 text encoder / Wan VAE** loading path for the Anima checkpoint family
+* added missing support files used by that backend, including `ldm_patched/ldm/common_dit.py`, `ldm_patched/ldm/cosmos/*`, and `ldm_patched/patcher_extension.py`
+* added the `anima_preview2` preset with Anima-oriented defaults:
+  * `1344x1344`
+  * `Quality`
+  * `40` steps
+  * `CFG 4.5`
+  * `euler_ancestral + simple`
+  * `Advanced = on`
+  * `Image Number = 32`
+  * default positive / negative prompts tuned for Anima tag-style prompting
+* updated the worker path so Anima sampling uses the correct reference-sampler behavior instead of falling back to a mismatched path that produced noisy results
+* preserved `model_file` on cloned UNet patchers so the worker path can still resolve the correct Anima checkpoint during sampling
+* clamped unsafe default combinations for Anima in the worker path, for example:
+  * disabling Fooocus V2 prompt expansion
+  * forcing unsupported sampler / scheduler combinations back to known-good ones
+  * capping implicit high-step runs back to the tested `40`-step default
+* added reproducibility helpers for empty Colab runtimes:
+  * `scripts/anima_preview2_colab_bootstrap.py`
+  * `scripts/anima_preview2_worker_repro.py`
+  * `tests/test_anima_pipeline.py`
+* made Gradio startup more robust by lazy-loading `rembg`, so the app no longer crashes on startup just because optional mask-generation dependencies are unavailable
+
+### Did this fork integrate ComfyUI?
+
+**No, not as a second UI or as a bundled replacement app.**
+
+The shipped UI is still Fooocus Gradio, the task queue is still Fooocus, and the preset system is still Fooocus.
+
+What changed is narrower than "embedding ComfyUI":
+
+* Fooocus already contains a lot of Comfy-derived internals under `ldm_patched/`
+* for Anima, this branch aligns Fooocus' worker sampling with the **reference sampler behavior** needed by Preview2
+* during diagnosis on Colab, `/content/ComfyUI` can be cloned as a **reference implementation** to compare behavior against the official sampler path
+* that reference setup was used to fix parity problems, but the normal app you launch here is still Fooocus
+
+So the short version is: **we did not turn this repo into ComfyUI; we fixed Fooocus so that its Anima worker path behaves much closer to the reference sampler that Anima expects.**
+
+### Current recommended Anima defaults
+
+These are the current known-good defaults for the `anima_preview2` preset in this fork:
+
+* sampler: `euler_ancestral`
+* scheduler: `simple`
+* steps: `40`
+* CFG: `4.5`
+* aspect ratio: `1344x1344`
+* positive prompt default:
+
+```text
+masterpiece, best quality, highres, safe, 1girl, solo, looking at viewer, smile, long hair, detailed eyes, detailed face, clean lines, smooth shading, soft lighting
+```
+
+* negative prompt default:
+
+```text
+worst quality, low quality, score_1, score_2, score_3, blurry, jpeg artifacts, watermark, patreon logo, bad hands, bad fingers, bad eyes, bad pupils, bad iris, 6 fingers, 6 toes
+```
+
+These defaults are meant to be a safe starting point, not a claim that Anima only works with one exact prompt format. The model still responds strongly to prompt quality, tag order, and sampler choice.
 
 For those interested in utilizing newer models such as **Flux**, we recommend exploring alternative platforms such as [WebUI Forge](https://github.com/lllyasviel/stable-diffusion-webui-forge) (also from us), [ComfyUI/SwarmUI](https://github.com/comfyanonymous/ComfyUI). Additionally, several [excellent forks of Fooocus](https://github.com/lllyasviel/Fooocus?tab=readme-ov-file#forks) are available for experimentation.
 
@@ -322,7 +391,25 @@ Windows: download the [7z file](#download), extract it and run `run.bat`. You ma
 
 In Colab, you can modify the last line to `!python entry_with_update.py --share --always-high-vram` or `!python entry_with_update.py --share --always-high-vram --preset anime` or `!python entry_with_update.py --share --always-high-vram --preset realistic` for Fooocus Default/Anime/Realistic Edition.
 
-For the experimental Anima Preview2 path on a fresh Colab runtime, use `python scripts/anima_preview2_colab_bootstrap.py` after cloning. It installs Python requirements, downloads the required Anima files, and writes the headless repro outputs under `/content/anima_case_outputs`.
+For the experimental Anima Preview2 path, use the `feature/anima-preview2-integration` branch.
+
+Typical fresh Colab flow:
+
+```bash
+git clone --depth 1 --branch feature/anima-preview2-integration https://github.com/asahiruyoru/Fooocus /content/Fooocus
+cd /content/Fooocus
+python scripts/anima_preview2_colab_bootstrap.py
+python entry_with_update.py --share --always-high-vram --preset anima_preview2
+```
+
+What the bootstrap does:
+
+* installs the pinned Python requirements
+* downloads the required Anima checkpoint, VAE, and text encoder files
+* runs the headless Anima repro / diagnostic helpers
+* writes diagnostic outputs under `/content/anima_case_outputs`
+
+If you only want the Gradio app and not the diagnostic run, you can skip the bootstrap and start the app directly after cloning, as long as the required model files are already present.
 
 You can also change the preset in the UI. Please be aware that this may lead to timeouts after 60 seconds. If this is the case, please wait until the download has finished, change the preset to initial and back to the one you've selected or reload the page.
 
