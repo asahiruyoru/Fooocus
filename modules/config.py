@@ -747,6 +747,7 @@ possible_preset_keys = {
     "default_styles": "styles",
     "default_aspect_ratio": "resolution",
     "default_save_metadata_to_images": "default_save_metadata_to_images",
+    "default_metadata_scheme": "default_metadata_scheme",
     "checkpoint_downloads": "checkpoint_downloads",
     "embeddings_downloads": "embeddings_downloads",
     "lora_downloads": "lora_downloads",
