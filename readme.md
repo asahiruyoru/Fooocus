@@ -195,6 +195,8 @@ The Fooocus project remains primarily centered around the **Stable Diffusion XL*
 
 This fork also includes **experimental Anima Preview2 support**. Treat that path as an advanced feature rather than a fully stabilized replacement for the standard SDXL workflow.
 
+For a fresh Colab runtime that needs the Anima model downloads plus the headless `plain_*` repro cases, run `python scripts/anima_preview2_colab_bootstrap.py` after cloning the repo.
+
 For those interested in utilizing newer models such as **Flux**, we recommend exploring alternative platforms such as [WebUI Forge](https://github.com/lllyasviel/stable-diffusion-webui-forge) (also from us), [ComfyUI/SwarmUI](https://github.com/comfyanonymous/ComfyUI). Additionally, several [excellent forks of Fooocus](https://github.com/lllyasviel/Fooocus?tab=readme-ov-file#forks) are available for experimentation.
 
 Again, recently many fake websites exist on Google when you search “fooocus”. Do **NOT** get Fooocus from those websites – this page is the only official source of Fooocus. We never have any website like such as “fooocus.com”, “fooocus.net”, “fooocus.co”, “fooocus.ai”, “fooocus.org”, “fooocus.pro”, “fooocus.one”. Those websites are ALL FAKE. **They have ABSOLUTLY no relationship to us. Fooocus is a 100% non-commercial offline open-source software.**
@@ -319,6 +321,8 @@ Windows: download the [7z file](#download), extract it and run `run.bat`. You ma
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/mashb1t/Fooocus/blob/main/fooocus_colab.ipynb) | Fooocus Official
 
 In Colab, you can modify the last line to `!python entry_with_update.py --share --always-high-vram` or `!python entry_with_update.py --share --always-high-vram --preset anime` or `!python entry_with_update.py --share --always-high-vram --preset realistic` for Fooocus Default/Anime/Realistic Edition.
+
+For the experimental Anima Preview2 path on a fresh Colab runtime, use `python scripts/anima_preview2_colab_bootstrap.py` after cloning. It installs Python requirements, downloads the required Anima files, and writes the headless repro outputs under `/content/anima_case_outputs`.
 
 You can also change the preset in the UI. Please be aware that this may lead to timeouts after 60 seconds. If this is the case, please wait until the download has finished, change the preset to initial and back to the one you've selected or reload the page.
 
