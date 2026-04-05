@@ -13,12 +13,25 @@ class TestAnimaPreset(unittest.TestCase):
 
         self.assertEqual(preset['default_model'], 'anima-preview2.safetensors')
         self.assertEqual(preset['default_vae'], 'qwen_image_vae.safetensors')
-        self.assertEqual(preset['default_sampler'], 'euler')
+        self.assertEqual(preset['default_sampler'], 'euler_ancestral')
         self.assertEqual(preset['default_scheduler'], 'simple')
-        self.assertEqual(preset['default_cfg_scale'], 4.0)
-        self.assertEqual(preset['default_performance'], 'Speed')
-        self.assertEqual(preset['default_overwrite_step'], 20)
-        self.assertEqual(preset['default_aspect_ratio'], '1024*1024')
+        self.assertEqual(preset['default_cfg_scale'], 4.5)
+        self.assertEqual(preset['default_performance'], 'Quality')
+        self.assertEqual(preset['default_advanced_checkbox'], True)
+        self.assertEqual(preset['default_image_number'], 32)
+        self.assertEqual(
+            preset['default_prompt'],
+            'masterpiece, best quality, highres, safe, 1girl, solo, looking at viewer, smile, '
+            'long hair, detailed eyes, detailed face, clean lines, smooth shading, soft lighting',
+        )
+        self.assertEqual(
+            preset['default_prompt_negative'],
+            'worst quality, low quality, score_1, score_2, score_3, blurry, jpeg artifacts, '
+            'watermark, patreon logo, bad hands, bad fingers, bad eyes, bad pupils, bad iris, '
+            '6 fingers, 6 toes',
+        )
+        self.assertEqual(preset['default_overwrite_step'], 40)
+        self.assertEqual(preset['default_aspect_ratio'], '1344*1344')
         self.assertEqual(preset['default_styles'], [])
         self.assertEqual(preset['default_refiner'], 'None')
 
