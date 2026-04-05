@@ -83,6 +83,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--height", type=int, default=1024, help="Height.")
     parser.add_argument("--cfg", type=float, default=4.0, help="CFG scale.")
     parser.add_argument("--seed", type=int, default=42, help="Seed.")
+    parser.add_argument("--sampler", default="euler", help="Sampler name.")
+    parser.add_argument("--scheduler", default="simple", help="Scheduler name.")
     parser.add_argument(
         "--switch",
         type=int,
@@ -150,8 +152,8 @@ def main() -> int:
         height=args.height,
         image_seed=args.seed,
         callback=lambda *unused_args, **unused_kwargs: None,
-        sampler_name="euler",
-        scheduler_name="simple",
+        sampler_name=args.sampler,
+        scheduler_name=args.scheduler,
         latent=None,
         denoise=1.0,
         tiled=False,
@@ -174,6 +176,8 @@ def main() -> int:
         "height": args.height,
         "cfg": args.cfg,
         "seed": args.seed,
+        "sampler": args.sampler,
+        "scheduler": args.scheduler,
         "status": "ok",
         "output_path": str(output_path),
         "duration_sec": round(time.time() - started, 2),

@@ -1,4 +1,5 @@
 import os
+import sys
 import einops
 import torch
 import numpy as np
@@ -32,6 +33,10 @@ opControlNetApplyAdvanced = ControlNetApplyAdvanced()
 opFreeU = FreeU_V2()
 opModelSamplingDiscrete = ModelSamplingDiscrete()
 opModelSamplingContinuousEDM = ModelSamplingContinuousEDM()
+
+
+_anima_reference_sampler_cache = {}
+_anima_reference_sampler_announced = set()
 
 
 class StableDiffusionModel:
@@ -146,7 +151,76 @@ def apply_controlnet(positive, negative, control_net, image, strength, start_per
 def load_model(ckpt_filename, vae_filename=None):
     unet, clip, vae, vae_filename, clip_vision = load_checkpoint_guess_config(ckpt_filename, embedding_directory=path_embeddings,
                                                                 vae_filename_param=vae_filename)
+    if unet is not None:
+        unet.model_file = ckpt_filename
     return StableDiffusionModel(unet=unet, clip=clip, vae=vae, clip_vision=clip_vision, filename=ckpt_filename, vae_filename=vae_filename)
+
+
+def _is_anima_model_patcher(model):
+    return hasattr(model, "model") and model.model.__class__.__name__ == "Anima"
+
+
+def _get_anima_reference_comfy_root():
+    fooocus_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    candidates = [
+        os.environ.get("FOOOCUS_ANIMA_COMFY_ROOT"),
+        "/content/ComfyUI",
+        os.path.join(fooocus_root, "comfyui_tmp"),
+    ]
+    for root in candidates:
+        if not root:
+            continue
+        if os.path.exists(os.path.join(root, "comfy", "sd.py")):
+            return root
+    return None
+
+
+def _load_anima_reference_modules():
+    comfy_root = _get_anima_reference_comfy_root()
+    if comfy_root is None:
+        return None, None
+    if comfy_root not in sys.path:
+        sys.path.insert(0, comfy_root)
+    import comfy.sample
+    import comfy.sd
+
+    return comfy.sample, comfy.sd
+
+
+def _get_anima_reference_model(model):
+    ckpt_filename = getattr(model, "model_file", None)
+    if not ckpt_filename:
+        return None
+
+    comfy_sample, comfy_sd = _load_anima_reference_modules()
+    if comfy_sample is None or comfy_sd is None:
+        return None
+
+    cached = _anima_reference_sampler_cache.get(ckpt_filename)
+    if cached is not None:
+        return cached
+
+    comfy_model, _clip, _vae, _clipvision = comfy_sd.load_checkpoint_guess_config(
+        ckpt_filename,
+        output_vae=False,
+        output_clip=False,
+        output_clipvision=False,
+        embedding_directory=path_embeddings,
+    )
+    _anima_reference_sampler_cache[ckpt_filename] = comfy_model
+    return comfy_model
+
+
+def _can_use_anima_reference_sampler(model, refiner):
+    if refiner is not None:
+        return False
+    if not _is_anima_model_patcher(model):
+        return False
+    if getattr(model, "patches", {}):
+        return False
+    if _get_anima_reference_comfy_root() is None:
+        return False
+    return True
 
 
 @torch.no_grad()
@@ -309,6 +383,41 @@ def ksampler(model, positive, negative, latent, seed=None, steps=30, cfg=7.0, sa
             callback_function(previewer_start + step, x0, x, previewer_end, y)
 
     disable_pbar = False
+
+    if _can_use_anima_reference_sampler(model, refiner):
+        comfy_sample, _comfy_sd = _load_anima_reference_modules()
+        reference_model = _get_anima_reference_model(model)
+        if reference_model is not None and comfy_sample is not None:
+            model_file = getattr(model, "model_file", "<unknown>")
+            if model_file not in _anima_reference_sampler_announced:
+                comfy_root = _get_anima_reference_comfy_root()
+                print(f"[AnimaSampler] Using Comfy reference sampler from {comfy_root}")
+                _anima_reference_sampler_announced.add(model_file)
+            samples = comfy_sample.sample(
+                model=reference_model,
+                noise=noise,
+                steps=steps,
+                cfg=cfg,
+                sampler_name=sampler_name,
+                scheduler=scheduler,
+                positive=positive,
+                negative=negative,
+                latent_image=latent_image,
+                denoise=denoise,
+                disable_noise=disable_noise,
+                start_step=start_step,
+                last_step=last_step,
+                force_full_denoise=force_full_denoise,
+                noise_mask=noise_mask,
+                sigmas=sigmas,
+                callback=callback,
+                disable_pbar=disable_pbar,
+                seed=seed,
+            )
+            out = latent.copy()
+            out["samples"] = samples
+            return out
+
     modules.sample_hijack.current_refiner = refiner
     modules.sample_hijack.refiner_switch_step = refiner_switch
     ldm_patched.modules.samplers.sample = modules.sample_hijack.sample_hacked

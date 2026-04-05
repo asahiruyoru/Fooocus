@@ -171,6 +171,7 @@ class VAE:
         self.memory_used_decode = lambda shape, dtype: (2178 * shape[2] * shape[3] * 64) * model_management.dtype_size(dtype)
         self.downscale_ratio = 8
         self.latent_channels = 4
+        self.latent_dim = 2
 
         if config is None:
             if "decoder.mid.block_1.mix_factor" in sd:
@@ -188,11 +189,12 @@ class VAE:
                 from ldm_patched.ldm.anima.vae import WanVAE
                 dim = sd["decoder.head.0.gamma"].shape[0]
                 self.latent_channels = 16
+                self.latent_dim = 3
                 self.downscale_ratio = 8
                 ddconfig = {"dim": dim, "z_dim": self.latent_channels, "dim_mult": [1, 2, 4, 4], "num_res_blocks": 2, "attn_scales": [], "temperal_downsample": [False, True, True], "dropout": 0.0}
                 self.first_stage_model = WanVAE(**ddconfig)
-                self.memory_used_decode = lambda shape, dtype: (2200 * shape[2] * shape[3] * (8*8)) * model_management.dtype_size(dtype)
-                self.memory_used_encode = lambda shape, dtype: (1500 * shape[2] * shape[3]) * model_management.dtype_size(dtype)
+                self.memory_used_decode = lambda shape, dtype: (2200 * shape[-2] * shape[-1] * (8*8)) * model_management.dtype_size(dtype)
+                self.memory_used_encode = lambda shape, dtype: (1500 * shape[-2] * shape[-1]) * model_management.dtype_size(dtype)
             else:
                 #default SD1.x/SD2.x VAE parameters
                 z_channels = 4
@@ -264,20 +266,27 @@ class VAE:
 
     def decode(self, samples_in):
         try:
+            if self.latent_dim == 3 and samples_in.ndim == 4:
+                samples_in = samples_in.unsqueeze(2)
+
             memory_used = self.memory_used_decode(samples_in.shape, self.vae_dtype)
             model_management.load_models_gpu([self.patcher], memory_required=memory_used)
             free_memory = model_management.get_free_memory(self.device)
             batch_number = int(free_memory / memory_used)
             batch_number = max(1, batch_number)
-
-            pixel_samples = torch.empty((samples_in.shape[0], 3, round(samples_in.shape[2] * self.downscale_ratio), round(samples_in.shape[3] * self.downscale_ratio)), device=self.output_device)
+            pixel_samples = None
             for x in range(0, samples_in.shape[0], batch_number):
                 samples = samples_in[x:x+batch_number].to(self.vae_dtype).to(self.device)
-                pixel_samples[x:x+batch_number] = torch.clamp((self.first_stage_model.decode(samples).to(self.output_device).float() + 1.0) / 2.0, min=0.0, max=1.0)
+                out = torch.clamp((self.first_stage_model.decode(samples).to(self.output_device).float() + 1.0) / 2.0, min=0.0, max=1.0)
+                if pixel_samples is None:
+                    pixel_samples = torch.empty((samples_in.shape[0],) + tuple(out.shape[1:]), device=self.output_device, dtype=out.dtype)
+                pixel_samples[x:x+batch_number].copy_(out)
         except model_management.OOM_EXCEPTION as e:
             print("Warning: Ran out of memory when regular VAE decoding, retrying with tiled VAE decoding.")
             pixel_samples = self.decode_tiled_(samples_in)
 
+        if self.latent_dim == 3 and pixel_samples.ndim == 5 and pixel_samples.shape[2] == 1:
+            pixel_samples = pixel_samples.squeeze(2)
         pixel_samples = pixel_samples.to(self.output_device).movedim(1,-1)
         return pixel_samples
 

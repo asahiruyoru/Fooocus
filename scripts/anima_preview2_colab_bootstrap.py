@@ -40,6 +40,8 @@ from urllib.request import urlretrieve
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT_ROOT = Path("/content/anima_case_outputs")
+DEFAULT_COMFYUI_ROOT = Path("/content/ComfyUI")
+COMFYUI_REPO_URL = "https://github.com/comfyanonymous/ComfyUI.git"
 REQUIREMENTS_FILE = REPO_ROOT / "requirements_versions.txt"
 PRESET_FILE = REPO_ROOT / "presets" / "anima_preview2.json"
 PIPELINE_TEST_FILE = REPO_ROOT / "tests" / "test_anima_pipeline.py"
@@ -91,6 +93,17 @@ DEFAULT_CASES = [
 RICH_PROMPT = (
     "1girl, solo, anime style, detailed face, long black hair, blue eyes, "
     "school uniform, cherry blossom"
+)
+
+OFFICIAL_TAG_PROMPT = (
+    "masterpiece, best quality, highres, safe, 1girl, solo, long black hair, "
+    "blue eyes, school uniform, cherry blossom, looking at viewer, blush, "
+    "long hair, detailed face, clean lines, smooth shading"
+)
+
+OFFICIAL_NEGATIVE_PROMPT = (
+    "worst quality, low quality, score_1, score_2, score_3, blurry, "
+    "jpeg artifacts"
 )
 
 WORKER_PAIR_CASES = [
@@ -151,6 +164,61 @@ DIAGNOSTIC_CASES = [
     *WORKER_PAIR_CASES,
 ]
 
+OFFICIAL_CASES = [
+    {
+        "label": "plain_official_euler_a_40_1024",
+        "prompt": OFFICIAL_TAG_PROMPT,
+        "negative_prompt": OFFICIAL_NEGATIVE_PROMPT,
+        "negative_mode": "encode",
+        "steps": 40,
+        "width": 1024,
+        "height": 1024,
+        "cfg": 4.5,
+        "seed": 42,
+        "sampler": "euler_ancestral",
+        "scheduler": "simple",
+    },
+    {
+        "label": "plain_official_dpmpp2m_40_1024",
+        "prompt": OFFICIAL_TAG_PROMPT,
+        "negative_prompt": OFFICIAL_NEGATIVE_PROMPT,
+        "negative_mode": "encode",
+        "steps": 40,
+        "width": 1024,
+        "height": 1024,
+        "cfg": 4.5,
+        "seed": 42,
+        "sampler": "dpmpp_2m_sde_gpu",
+        "scheduler": "karras",
+    },
+    {
+        "runner": "worker",
+        "label": "worker_official_euler_a_40_1024",
+        "prompt": OFFICIAL_TAG_PROMPT,
+        "negative_prompt": OFFICIAL_NEGATIVE_PROMPT,
+        "steps": 40,
+        "width": 1024,
+        "height": 1024,
+        "cfg": 4.5,
+        "seed": 42,
+        "sampler": "euler_ancestral",
+        "scheduler": "simple",
+    },
+    {
+        "runner": "worker",
+        "label": "worker_official_dpmpp2m_40_1024",
+        "prompt": OFFICIAL_TAG_PROMPT,
+        "negative_prompt": OFFICIAL_NEGATIVE_PROMPT,
+        "steps": 40,
+        "width": 1024,
+        "height": 1024,
+        "cfg": 4.5,
+        "seed": 42,
+        "sampler": "dpmpp_2m_sde_gpu",
+        "scheduler": "karras",
+    },
+]
+
 
 def run(cmd: list[str], cwd: Path | None = None, env: dict[str, str] | None = None) -> None:
     print("$", shlex.join(cmd))
@@ -168,7 +236,12 @@ def run_capture(cmd: list[str], cwd: Path | None = None) -> subprocess.Completed
         check=True,
     )
     if completed.stdout:
-        print(completed.stdout, end="" if completed.stdout.endswith("\n") else "\n")
+        lines = completed.stdout.splitlines()
+        if len(lines) > 80:
+            print(f"[truncated output] showing last 80 of {len(lines)} lines")
+            lines = lines[-80:]
+        text = "\n".join(lines)
+        print(text, end="" if text.endswith("\n") else "\n")
     return completed
 
 
@@ -263,11 +336,39 @@ def ensure_models(skip: bool) -> None:
         print(f"  {destination}: {size_gb:.2f} GB")
 
 
+def ensure_comfyui_reference() -> Path:
+    comfy_root = DEFAULT_COMFYUI_ROOT
+    comfy_sd = comfy_root / "comfy" / "sd.py"
+
+    if comfy_sd.exists():
+        print(f"Using existing ComfyUI reference checkout: {comfy_root}")
+    else:
+        comfy_root.parent.mkdir(parents=True, exist_ok=True)
+        run(
+            [
+                "git",
+                "clone",
+                "--depth",
+                "1",
+                COMFYUI_REPO_URL,
+                str(comfy_root),
+            ],
+            cwd=comfy_root.parent,
+        )
+
+    os.environ["FOOOCUS_ANIMA_COMFY_ROOT"] = str(comfy_root)
+    os.environ["ANIMA_COMFY_ROOT"] = str(comfy_root)
+    print(f"FOOOCUS_ANIMA_COMFY_ROOT={comfy_root}")
+    return comfy_root
+
+
 def build_cases(args: argparse.Namespace) -> list[dict[str, object]]:
     if args.profile == "baseline":
         return list(DEFAULT_CASES)
     if args.profile == "diagnostic":
         return list(DIAGNOSTIC_CASES)
+    if args.profile == "official":
+        return list(OFFICIAL_CASES)
     if args.profile == "worker_pair":
         return list(WORKER_PAIR_CASES)
 
@@ -283,6 +384,8 @@ def build_cases(args: argparse.Namespace) -> list[dict[str, object]]:
             "height": args.height,
             "cfg": args.cfg,
             "seed": args.seed,
+            "sampler": args.sampler,
+            "scheduler": args.scheduler,
         }
     ]
 
@@ -320,6 +423,10 @@ def run_plain_case(case: dict[str, object], output_root: Path) -> dict[str, obje
         str(case["cfg"]),
         "--seed",
         str(case["seed"]),
+        "--sampler",
+        str(case.get("sampler", "euler")),
+        "--scheduler",
+        str(case.get("scheduler", "simple")),
         "--output",
         str(output_path),
     ]
@@ -384,6 +491,10 @@ def run_worker_case(case: dict[str, object], output_root: Path) -> dict[str, obj
         str(case["cfg"]),
         "--seed",
         str(case["seed"]),
+        "--sampler",
+        str(case.get("sampler", "euler")),
+        "--scheduler",
+        str(case.get("scheduler", "simple")),
         "--output",
         str(output_path),
         "--output-root",
@@ -449,7 +560,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--profile",
-        choices=["baseline", "diagnostic", "single", "worker_pair", "worker_single"],
+        choices=["baseline", "diagnostic", "official", "single", "worker_pair", "worker_single"],
         default="baseline",
         help="Which case set to run after preparing the runtime.",
     )
@@ -467,6 +578,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--height", type=int, default=1024, help="Height for --profile single.")
     parser.add_argument("--cfg", type=float, default=4.0, help="CFG for --profile single.")
     parser.add_argument("--seed", type=int, default=42, help="Seed for --profile single.")
+    parser.add_argument("--sampler", default="euler", help="Sampler for single profiles.")
+    parser.add_argument("--scheduler", default="simple", help="Scheduler for single profiles.")
     parser.add_argument(
         "--output-root",
         default=str(DEFAULT_OUTPUT_ROOT),
@@ -497,6 +610,7 @@ def main() -> int:
     show_runtime_info()
     ensure_python_requirements(args.skip_requirements)
     ensure_models(args.skip_downloads)
+    ensure_comfyui_reference()
 
     if args.prepare_only:
         print("Preparation finished. Cases were not executed.")
