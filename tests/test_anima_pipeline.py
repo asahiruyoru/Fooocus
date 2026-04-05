@@ -123,12 +123,20 @@ def test_model_loading(ckpt_path):
     )
     t1 = time.time()
 
-    model_patcher, clip, vae, clipvision = result
+    if len(result) == 5:
+        model_patcher, clip, vae, vae_filename, clipvision = result
+    elif len(result) == 4:
+        model_patcher, clip, vae, clipvision = result
+        vae_filename = None
+    else:
+        raise AssertionError(f"unexpected checkpoint result tuple length: {len(result)}")
     model = model_patcher.model
 
     print(f"  モデルタイプ: {type(model).__name__}")
     print(f"  拡散モデル: {type(model.diffusion_model).__name__}")
     print(f"  VAE: {vae is not None}")
+    if vae_filename is not None:
+        print(f"  外部VAE: {vae_filename}")
     print(f"  ロード時間: {t1-t0:.2f}秒")
 
     # VAE が自動ロードされたか確認
