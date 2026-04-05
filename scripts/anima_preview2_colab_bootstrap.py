@@ -42,6 +42,11 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT_ROOT = Path("/content/anima_case_outputs")
 REQUIREMENTS_FILE = REPO_ROOT / "requirements_versions.txt"
 PRESET_FILE = REPO_ROOT / "presets" / "anima_preview2.json"
+PIPELINE_TEST_FILE = REPO_ROOT / "tests" / "test_anima_pipeline.py"
+REQUIRED_REPO_FILES = [
+    PRESET_FILE,
+    PIPELINE_TEST_FILE,
+]
 
 # The Anima preset tracks checkpoint + VAE downloads, but not the text encoder.
 CLIP_DOWNLOADS = {
@@ -110,6 +115,19 @@ def ensure_repo_root() -> None:
     os.chdir(REPO_ROOT)
     if str(REPO_ROOT) not in sys.path:
         sys.path.insert(0, str(REPO_ROOT))
+
+
+def ensure_required_repo_files() -> None:
+    missing = [path for path in REQUIRED_REPO_FILES if not path.exists()]
+    if not missing:
+        return
+
+    missing_text = "\n".join(f"  - {path}" for path in missing)
+    raise SystemExit(
+        "This checkout is missing files required for the Anima Preview2 Colab bootstrap.\n"
+        f"{missing_text}\n"
+        "Update or reclone feature/anima-preview2-integration before rerunning."
+    )
 
 
 def show_runtime_info() -> None:
@@ -324,6 +342,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     ensure_repo_root()
+    ensure_required_repo_files()
     show_runtime_info()
     ensure_python_requirements(args.skip_requirements)
     ensure_models(args.skip_downloads)
