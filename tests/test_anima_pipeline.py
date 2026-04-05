@@ -290,7 +290,7 @@ def main():
     # GPU 情報
     if torch.cuda.is_available():
         props = torch.cuda.get_device_properties(0)
-        print(f"\nGPU: {props.name}, VRAM: {props.total_mem / 1024**3:.1f} GB")
+        print(f"\nGPU: {props.name}, VRAM: {props.total_memory / 1024**3:.1f} GB")
     else:
         print("\n⚠ GPU が利用できません。CPU で実行します（非常に遅い）。")
 
