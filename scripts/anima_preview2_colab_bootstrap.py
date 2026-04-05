@@ -27,7 +27,6 @@ You can also use it for a single custom case:
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
 import os
 import shlex
@@ -42,7 +41,6 @@ from urllib.request import urlretrieve
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT_ROOT = Path("/content/anima_case_outputs")
 DEFAULT_COMFYUI_ROOT = Path("/content/ComfyUI")
-BUNDLED_COMFYUI_ROOT = REPO_ROOT / "comfyui_tmp"
 COMFYUI_REPO_URL = "https://github.com/comfyanonymous/ComfyUI.git"
 REQUIREMENTS_FILE = REPO_ROOT / "requirements_versions.txt"
 PRESET_FILE = REPO_ROOT / "presets" / "anima_preview2.json"
@@ -60,6 +58,68 @@ CLIP_DOWNLOADS = {
         "https://huggingface.co/circlestone-labs/Anima/resolve/main/"
         "split_files/text_encoders/qwen_3_06b_base.safetensors"
     )
+}
+
+COMFY_AIMDO_STUBS = {
+    "__init__.py": '''"""Lightweight stubs for optional ComfyUI AIMDO integrations.
+
+These placeholders are enough for the Anima sampler reference path,
+which only needs the Python imports to succeed.
+"""
+''',
+    "host_buffer.py": '''"""Host buffer stub used when AIMDO is unavailable."""
+
+
+class HostBuffer:
+    def __init__(self, size):
+        self.size = int(size)
+''',
+    "model_vbar.py": '''"""No-op fallback for the optional AIMDO virtual BAR helpers."""
+
+
+class ModelVBAR:
+    def __init__(self, size, device_index=None):
+        self.size = int(size)
+        self.device_index = device_index
+
+    def loaded_size(self):
+        return 0
+
+    def prioritize(self):
+        return None
+
+
+def vbar_fault(_vbar):
+    return None
+
+
+def vbar_signature_compare(_signature, _other_signature):
+    return True
+
+
+def vbar_unpin(_vbar):
+    return None
+
+
+def vbars_analyze():
+    return 0
+
+
+def vbars_reset_watermark_limits():
+    return None
+''',
+    "torch.py": '''"""Torch bridge stubs for optional AIMDO integrations."""
+
+import torch
+
+
+def aimdo_to_tensor(_vbar, device):
+    return torch.empty(0, device=device)
+
+
+def hostbuf_to_tensor(hostbuf):
+    return torch.empty(hostbuf.size, dtype=torch.uint8)
+''',
 }
 
 DEFAULT_CASES = [
@@ -351,56 +411,41 @@ def _comfy_root_has_required_modules(comfy_root: Path) -> bool:
     comfy_sd = comfy_root / "comfy" / "sd.py"
     if not comfy_sd.exists():
         return False
+    return (comfy_root / "comfy_aimdo" / "host_buffer.py").exists()
 
-    root_str = str(comfy_root)
-    added = False
-    if root_str not in sys.path:
-        sys.path.insert(0, root_str)
-        added = True
 
-    try:
-        return importlib.util.find_spec("comfy_aimdo.host_buffer") is not None
-    finally:
-        if added:
-            try:
-                sys.path.remove(root_str)
-            except ValueError:
-                pass
+def ensure_comfy_aimdo_stubs(comfy_root: Path) -> None:
+    stub_root = comfy_root / "comfy_aimdo"
+    stub_root.mkdir(parents=True, exist_ok=True)
+    for relative_name, content in COMFY_AIMDO_STUBS.items():
+        target = stub_root / relative_name
+        if not target.exists():
+            target.write_text(content, encoding="utf-8")
 
 
 def ensure_comfyui_reference() -> Path:
-    candidate_roots = [BUNDLED_COMFYUI_ROOT, DEFAULT_COMFYUI_ROOT]
-
-    for comfy_root in candidate_roots:
-        if _comfy_root_has_required_modules(comfy_root):
-            source = "bundled" if comfy_root == BUNDLED_COMFYUI_ROOT else "existing"
-            print(f"Using {source} ComfyUI reference checkout: {comfy_root}")
-            os.environ["FOOOCUS_ANIMA_COMFY_ROOT"] = str(comfy_root)
-            os.environ["ANIMA_COMFY_ROOT"] = str(comfy_root)
-            print(f"FOOOCUS_ANIMA_COMFY_ROOT={comfy_root}")
-            return comfy_root
-        if (comfy_root / "comfy" / "sd.py").exists():
-            print(f"Skipping incomplete ComfyUI reference root: {comfy_root}")
-
     comfy_root = DEFAULT_COMFYUI_ROOT
-    comfy_root.parent.mkdir(parents=True, exist_ok=True)
-    run(
-        [
-            "git",
-            "clone",
-            "--depth",
-            "1",
-            COMFYUI_REPO_URL,
-            str(comfy_root),
-        ],
-        cwd=comfy_root.parent,
-    )
+    comfy_sd = comfy_root / "comfy" / "sd.py"
+    if comfy_sd.exists():
+        print(f"Using existing ComfyUI reference checkout: {comfy_root}")
+    else:
+        comfy_root.parent.mkdir(parents=True, exist_ok=True)
+        run(
+            [
+                "git",
+                "clone",
+                "--depth",
+                "1",
+                COMFYUI_REPO_URL,
+                str(comfy_root),
+            ],
+            cwd=comfy_root.parent,
+        )
+
+    ensure_comfy_aimdo_stubs(comfy_root)
 
     if not _comfy_root_has_required_modules(comfy_root):
-        raise RuntimeError(
-            "Cloned /content/ComfyUI but required comfy_aimdo modules were still missing. "
-            "Use the bundled comfyui_tmp reference checkout from this branch."
-        )
+        raise RuntimeError("ComfyUI reference checkout is missing comfy_aimdo stubs after bootstrap.")
 
     os.environ["FOOOCUS_ANIMA_COMFY_ROOT"] = str(comfy_root)
     os.environ["ANIMA_COMFY_ROOT"] = str(comfy_root)

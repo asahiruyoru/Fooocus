@@ -1,4 +1,3 @@
-import importlib.util
 import os
 import sys
 import einops
@@ -167,18 +166,15 @@ def _get_anima_reference_comfy_root():
     fooocus_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     candidates = [
         os.environ.get("FOOOCUS_ANIMA_COMFY_ROOT"),
-        os.path.join(fooocus_root, "comfyui_tmp"),
         "/content/ComfyUI",
+        os.path.join(fooocus_root, "comfyui_tmp"),
     ]
     for root in candidates:
         if not root:
             continue
         if not os.path.exists(os.path.join(root, "comfy", "sd.py")):
             continue
-        if not (
-            os.path.exists(os.path.join(root, "comfy_aimdo"))
-            or importlib.util.find_spec("comfy_aimdo.host_buffer") is not None
-        ):
+        if not os.path.exists(os.path.join(root, "comfy_aimdo", "host_buffer.py")):
             continue
         return root
     return None
