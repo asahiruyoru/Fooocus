@@ -114,6 +114,7 @@ def main() -> int:
     import modules.patch
     import numpy as np
     from PIL import Image
+    from modules.a1111_png_metadata import save_png_with_a1111_metadata
     from modules.patch import PatchSettings
 
     output_root = Path(args.output_root)
@@ -163,7 +164,25 @@ def main() -> int:
     )
 
     image_array = imgs[0]
-    Image.fromarray(image_array).save(output_path)
+    parameters = save_png_with_a1111_metadata(
+        Image.fromarray(image_array),
+        output_path,
+        prompt=args.prompt,
+        negative_prompt=args.negative_prompt,
+        steps=args.steps,
+        width=args.width,
+        height=args.height,
+        cfg=args.cfg,
+        seed=args.seed,
+        sampler=args.sampler,
+        scheduler=args.scheduler,
+        base_model_name="anima-preview2.safetensors",
+        vae_name="qwen_image_vae.safetensors",
+        performance="Quality" if args.steps >= 40 else None,
+        sharpness=modules.config.default_sample_sharpness,
+        full_prompt=[args.prompt],
+        full_negative_prompt=[args.negative_prompt] if args.negative_prompt else [],
+    )
 
     metrics = compute_image_metrics(output_path)
     result = {
@@ -183,6 +202,9 @@ def main() -> int:
         "duration_sec": round(time.time() - started, 2),
         "hf_metric": metrics["hf_metric"],
         "color_std": metrics["color_std"],
+        "metadata_embedded": True,
+        "metadata_scheme": "a1111",
+        "a1111_parameters": parameters,
     }
 
     print("RESULT", json.dumps(result, ensure_ascii=False))
