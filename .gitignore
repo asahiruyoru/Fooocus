@@ -59,6 +59,11 @@ user_path_config-deprecated.txt
 /docs/anima-preview2-*.ipynb
 /test_vae.py
 /comfyui_tmp/
+
+# Local workspace
+/.local/
+tmp_*
+
+# Allowed docs (override the wildcard above)
 !/docs/anima-preview2-colab.ipynb
 !/docs/anima-preview2-fixes.md
-!/docs/anima-preview2-empty-ipynb-runlog.md
