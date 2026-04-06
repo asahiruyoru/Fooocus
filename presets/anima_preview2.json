@@ -34,7 +34,7 @@
     "default_sample_sharpness": 2.0,
     "default_sampler": "euler_ancestral",
     "default_scheduler": "simple",
-    "default_performance": "Quality",
+    "default_performance": "Balanced",
     "default_advanced_checkbox": true,
     "default_image_number": 32,
     "default_save_metadata_to_images": true,
@@ -43,7 +43,7 @@
     "default_prompt_negative": "worst quality, low quality, score_1, score_2, score_3, blurry, jpeg artifacts, watermark, patreon logo, bad hands, bad fingers, bad eyes, bad pupils, bad iris, 6 fingers, 6 toes",
     "default_styles": [],
     "default_aspect_ratio": "1344*1344",
-    "default_overwrite_step": 40,
+    "default_overwrite_step": -1,
     "default_overwrite_switch": -1,
     "default_inpaint_engine_version": "None",
     "checkpoint_downloads": {

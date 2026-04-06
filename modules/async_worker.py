@@ -709,9 +709,6 @@ def worker():
             if async_task.cfg_scale > 5.0:
                 print(f'[Anima] Overriding CFG: {async_task.cfg_scale} -> 4.5')
                 async_task.cfg_scale = 4.5
-            if async_task.overwrite_step <= 0 and async_task.steps > 40:
-                print(f'[Anima] Overriding implicit steps: {async_task.steps} -> 40')
-                async_task.steps = 40
             if use_expansion:
                 print('[Anima] Disabling Fooocus V2 expansion.')
                 use_expansion = False
