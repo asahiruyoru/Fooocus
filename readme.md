@@ -114,18 +114,16 @@ git pull
 ..\python_embeded\python.exe -m pip install -r "requirements_versions.txt"
 ```
 
-### Colab (SDXL)
+### Colab (Anima Preview2 / Animayume)
 
-SDXL 版の Colab ノートブックは元の [mashb1t/Fooocus](https://github.com/mashb1t/Fooocus) で提供されています。
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/asahiruyoru/Fooocus/blob/main/fooocus_colab.ipynb)
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/mashb1t/Fooocus/blob/main/fooocus_colab.ipynb) (mashb1t 版)
+ノートブックの設定セルでモデルプロファイル (`anima_preview2` / `animayume_v03`) やステップ数を選択できます。
 
-```bash
-# 起動例
-!python entry_with_update.py --share --always-high-vram --preset anime
-```
+> T4/L4 クラス GPU では `--always-gpu` 推奨 (ピーク VRAM 約 11.4GB)。VRAM が足りない場合は `--always-high-vram` にフォールバック。
 
-### Colab (Anima Preview2)
+<details>
+<summary>コマンドラインで直接実行する場合</summary>
 
 ```bash
 git clone --depth 1 \
@@ -139,8 +137,13 @@ bootstrap スクリプトが行うこと:
 - Python 依存パッケージのインストール
 - Anima チェックポイント・VAE・テキストエンコーダーのダウンロード
 - ヘッドレス診断の実行 (`/content/anima_case_outputs` に出力)
+</details>
 
-> T4/L4 クラス GPU では `--always-gpu` 推奨 (ピーク VRAM 約 11.4GB)。VRAM が足りない場合は `--always-high-vram` にフォールバック。
+### Colab (SDXL)
+
+SDXL 版の Colab ノートブックは元の [mashb1t/Fooocus](https://github.com/mashb1t/Fooocus) で提供されています。
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/mashb1t/Fooocus/blob/main/fooocus_colab.ipynb) (mashb1t 版)
 
 ### Linux
 
