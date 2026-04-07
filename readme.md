@@ -128,8 +128,8 @@ SDXL 版の Colab ノートブックは元の [mashb1t/Fooocus](https://github.c
 ### Colab (Anima Preview2)
 
 ```bash
-git clone --depth 1 --branch feature/anima-preview2-integration \
-  https://github.com/mashb1t/Fooocus /content/Fooocus
+git clone --depth 1 \
+  https://github.com/asahiruyoru/Fooocus /content/Fooocus
 cd /content/Fooocus
 python scripts/anima_preview2_colab_bootstrap.py
 python entry_with_update.py --share --always-gpu --preset anima_preview2
