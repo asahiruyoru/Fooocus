@@ -335,7 +335,7 @@ def ensure_required_repo_files() -> None:
     raise SystemExit(
         "This checkout is missing files required for the Anima Preview2 Colab bootstrap.\n"
         f"{missing_text}\n"
-        "Update or reclone feature/anima-preview2-integration before rerunning."
+        "Update or reclone the main branch before rerunning."
     )
 
 
