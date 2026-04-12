@@ -116,7 +116,7 @@ git pull
 
 ### Colab (Anima Preview3 / Preview2 / Animayume)
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/asahiruyoru/Fooocus/blob/main/fooocus_colab.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/asahiruyoru/Fooocus/blob/main/notebooks/fooocus_anima_colab.ipynb)
 
 ノートブックの設定セルでモデルプロファイル (`anima_preview3` / `anima_preview2` / `animayume_v03`) やステップ数を選択できます。デフォルトは `anima_preview3` です。
 
@@ -139,9 +139,13 @@ bootstrap スクリプトが行うこと:
 - ヘッドレス診断の実行 (`/content/anima_case_outputs` に出力)
 </details>
 
-### Colab (SDXL)
+### Colab (Illustrious / SDXL)
 
-SDXL 版の Colab ノートブックは元の [mashb1t/Fooocus](https://github.com/mashb1t/Fooocus) で提供されています。
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/asahiruyoru/Fooocus/blob/main/notebooks/fooocus_illustrious_colab.ipynb)
+
+Illustrious ベースの SDXL モデルで画像生成を行うためのノートブックです。設定セルでモデル選択やパラメータを変更できます。
+
+SDXL 版の Colab ノートブック (mashb1t オリジナル) は [mashb1t/Fooocus](https://github.com/mashb1t/Fooocus) で提供されています。
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/mashb1t/Fooocus/blob/main/fooocus_colab.ipynb) (mashb1t 版)
 
