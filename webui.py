@@ -368,21 +368,26 @@ with shared.gradio_root:
                             metadata_input_image = grh.Image(label='For images created by Fooocus', source='upload', type='pil')
                             metadata_json = gr.JSON(label='Metadata')
                             metadata_import_button = gr.Button(value='Apply Metadata')
+                            # Store parsed metadata from upload event so that the button
+                            # click handler does not have to re-read the image (Gradio's
+                            # Image editor may strip PNG text-chunks / EXIF between the
+                            # upload event and subsequent input reads).
+                            metadata_state = gr.State(value=None)
 
                         def trigger_metadata_preview(file):
                             parameters, metadata_scheme = modules.meta_parser.read_info_from_image(file)
 
-                            results = {}
+                            preview = {}
                             if parameters is not None:
-                                results['parameters'] = parameters
+                                preview['parameters'] = parameters
 
                             if isinstance(metadata_scheme, flags.MetadataScheme):
-                                results['metadata_scheme'] = metadata_scheme.value
+                                preview['metadata_scheme'] = metadata_scheme.value
 
-                            return results
+                            return preview, (parameters, metadata_scheme)
 
                         metadata_input_image.upload(trigger_metadata_preview, inputs=metadata_input_image,
-                                                    outputs=metadata_json, queue=False, show_progress=True)
+                                                    outputs=[metadata_json, metadata_state], queue=False, show_progress=True)
 
             with gr.Row(visible=modules.config.default_enhance_checkbox) as enhance_input_panel:
                 with gr.Tabs():
@@ -1072,8 +1077,8 @@ with shared.gradio_root:
 
         load_parameter_button.click(modules.meta_parser.load_parameter_button_click, inputs=[prompt, state_is_generating, inpaint_mode], outputs=load_data_outputs, queue=False, show_progress=False)
 
-        def trigger_metadata_import(file, state_is_generating):
-            parameters, metadata_scheme = modules.meta_parser.read_info_from_image(file)
+        def trigger_metadata_import(saved_metadata, state_is_generating):
+            parameters, metadata_scheme = (None, None) if saved_metadata is None else saved_metadata
             if parameters is None:
                 print('Could not find metadata in the image!')
                 parsed_parameters = {}
@@ -1083,7 +1088,7 @@ with shared.gradio_root:
 
             return modules.meta_parser.load_parameter_button_click(parsed_parameters, state_is_generating, inpaint_mode)
 
-        metadata_import_button.click(trigger_metadata_import, inputs=[metadata_input_image, state_is_generating], outputs=load_data_outputs, queue=False, show_progress=True) \
+        metadata_import_button.click(trigger_metadata_import, inputs=[metadata_state, state_is_generating], outputs=load_data_outputs, queue=False, show_progress=True) \
             .then(style_sorter.sort_styles, inputs=style_selections, outputs=style_selections, queue=False, show_progress=False)
 
         generate_button.click(lambda: (gr.update(visible=True, interactive=True), gr.update(visible=True, interactive=True), gr.update(visible=False, interactive=False), [], True),
