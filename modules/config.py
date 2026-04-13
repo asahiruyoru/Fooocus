@@ -826,6 +826,9 @@ def update_files():
 def downloading_inpaint_models(v):
     assert v in modules.flags.inpaint_engine_versions
 
+    if v == 'noobai':
+        return None, None
+
     load_file_from_url(
         url='https://huggingface.co/lllyasviel/fooocus_inpaint/resolve/main/fooocus_inpaint_head.pth',
         model_dir=path_inpaint,
@@ -859,6 +862,15 @@ def downloading_inpaint_models(v):
         patch_file = os.path.join(path_inpaint, 'inpaint_v26.fooocus.patch')
 
     return head_file, patch_file
+
+
+def downloading_inpaint_controlnet_noobai():
+    load_file_from_url(
+        url='https://huggingface.co/Wenaka/NoobAI_XL_Inpainting_ControlNet_Full/resolve/main/NoobAI_Inpainting_ControlNet.safetensors',
+        model_dir=path_controlnet,
+        file_name='NoobAI_Inpainting_ControlNet.safetensors'
+    )
+    return os.path.join(path_controlnet, 'NoobAI_Inpainting_ControlNet.safetensors')
 
 
 def downloading_sdxl_lcm_lora():

@@ -91,7 +91,7 @@ inpaint_mask_models = ['u2net', 'u2netp', 'u2net_human_seg', 'u2net_cloth_seg', 
 inpaint_mask_cloth_category = ['full', 'upper', 'lower']
 inpaint_mask_sam_model = ['vit_b', 'vit_l', 'vit_h']
 
-inpaint_engine_versions = ['None', 'v1', 'v2.5', 'v2.6']
+inpaint_engine_versions = ['None', 'v1', 'v2.5', 'v2.6', 'noobai']
 inpaint_option_default = 'Inpaint or Outpaint (default)'
 inpaint_option_detail = 'Improve Detail (face, hand, eyes, etc.)'
 inpaint_option_modify = 'Modify Content (add objects, change background, etc.)'
