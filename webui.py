@@ -336,6 +336,38 @@ with shared.gradio_root:
                                                                    example_inpaint_mask_dino_prompt_text],
                                                           queue=False, show_progress=False)
 
+                    with gr.Tab(label='NoobAI Inpaint', id='noobai_inpaint_tab') as noobai_inpaint_tab:
+                        with gr.Row():
+                            with gr.Column():
+                                noobai_inpaint_input_image = grh.Image(
+                                    label='Image',
+                                    source='upload',
+                                    type='numpy',
+                                    tool='sketch',
+                                    height=500,
+                                    brush_color="#FFFFFF",
+                                    elem_id='noobai_inpaint_canvas',
+                                    show_label=False
+                                )
+                                noobai_inpaint_additional_prompt = gr.Textbox(
+                                    placeholder="Describe what you want to inpaint with NoobAI.",
+                                    elem_id='noobai_inpaint_additional_prompt',
+                                    label='NoobAI Inpaint Additional Prompt'
+                                )
+                                noobai_example_inpaint_prompts = gr.Dataset(
+                                    samples=modules.config.example_inpaint_prompts,
+                                    label='Additional Prompt Quick List',
+                                    components=[noobai_inpaint_additional_prompt]
+                                )
+                                gr.HTML('* Dedicated tab for the NoobAI ControlNet-based inpaint flow. Draw the mask directly on the canvas. Shared denoising and respective-field settings still live in Advanced -> Inpaint.')
+                                noobai_example_inpaint_prompts.click(
+                                    lambda x: x[0],
+                                    inputs=noobai_example_inpaint_prompts,
+                                    outputs=noobai_inpaint_additional_prompt,
+                                    show_progress=False,
+                                    queue=False
+                                )
+
                     with gr.Tab(label='Describe', id='describe_tab') as describe_tab:
                         with gr.Row():
                             with gr.Column():
@@ -558,6 +590,7 @@ with shared.gradio_root:
             current_tab = gr.Textbox(value='uov', visible=False)
             uov_tab.select(lambda: 'uov', outputs=current_tab, queue=False, _js=down_js, show_progress=False)
             inpaint_tab.select(lambda: 'inpaint', outputs=current_tab, queue=False, _js=down_js, show_progress=False)
+            noobai_inpaint_tab.select(lambda: 'noobai_inpaint', outputs=current_tab, queue=False, _js=down_js, show_progress=False)
             ip_tab.select(lambda: 'ip', outputs=current_tab, queue=False, _js=down_js, show_progress=False)
             describe_tab.select(lambda: 'desc', outputs=current_tab, queue=False, _js=down_js, show_progress=False)
             enhance_tab.select(lambda: 'enhance', outputs=current_tab, queue=False, _js=down_js, show_progress=False)
@@ -1038,6 +1071,7 @@ with shared.gradio_root:
         ctrls += [input_image_checkbox, current_tab]
         ctrls += [uov_method, uov_input_image]
         ctrls += [outpaint_selections, inpaint_input_image, inpaint_additional_prompt, inpaint_mask_image]
+        ctrls += [noobai_inpaint_input_image, noobai_inpaint_additional_prompt]
         ctrls += [disable_preview, disable_intermediate_results, disable_seed_increment, black_out_nsfw]
         ctrls += [adm_scaler_positive, adm_scaler_negative, adm_scaler_end, adaptive_cfg, clip_skip]
         ctrls += [sampler_name, scheduler_name, vae_name]
