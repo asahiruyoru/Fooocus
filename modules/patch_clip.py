@@ -1,5 +1,6 @@
 # Consistent with Kohya/A1111 to reduce differences between model training and inference.
 
+import contextlib
 import os
 import torch
 import ldm_patched.controlnet.cldm
@@ -20,6 +21,13 @@ import ldm_patched.modules.ops as ops
 
 from modules.ops import use_patched_ops
 from transformers import CLIPTextModel, CLIPTextConfig, modeling_utils, CLIPVisionConfig, CLIPVisionModelWithProjection
+
+
+def _no_init_weights_context():
+    no_init_weights = getattr(modeling_utils, "no_init_weights", None)
+    if no_init_weights is not None:
+        return no_init_weights()
+    return contextlib.nullcontext()
 
 
 def patched_encode_token_weights(self, token_weight_pairs):
@@ -79,7 +87,7 @@ def patched_SDClipModel__init__(self, max_length=77, freeze=True, layer="last", 
     self.num_layers = config.num_hidden_layers
 
     with use_patched_ops(ops.manual_cast):
-        with modeling_utils.no_init_weights():
+        with _no_init_weights_context():
             self.transformer = CLIPTextModel(config)
 
     if dtype is not None:
@@ -158,7 +166,7 @@ def patched_ClipVisionModel__init__(self, json_config):
         self.dtype = torch.float32
 
     with use_patched_ops(ops.manual_cast):
-        with modeling_utils.no_init_weights():
+        with _no_init_weights_context():
             self.model = CLIPVisionModelWithProjection(config)
 
     self.model.to(self.dtype)

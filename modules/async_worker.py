@@ -279,7 +279,7 @@ def worker():
         return
 
     def process_task(all_steps, async_task, callback, controlnet_canny_path, controlnet_cpds_path,
-                     controlnet_anytest_path, controlnet_anytest_b_path, current_task_id,
+                     controlnet_anytest_path, controlnet_anytest_b_path, controlnet_inpaint_path, current_task_id,
                      denoising_strength, final_scheduler_name, goals, initial_latent, steps, switch, positive_cond,
                      negative_cond, task, loras, tiled, use_expansion, width, height, base_progress, preparation_steps,
                      total_count, show_intermediate_results, persist_image=True):
@@ -296,6 +296,15 @@ def worker():
                     positive_cond, negative_cond = core.apply_controlnet(
                         positive_cond, negative_cond,
                         pipeline.loaded_ControlNets[cn_path], cn_img, cn_weight, 0, cn_stop)
+        if 'inpaint' in goals and inpaint_worker.current_task is not None and controlnet_inpaint_path is not None and controlnet_inpaint_path in pipeline.loaded_ControlNets:
+            cn_img = inpaint_worker.current_task.interested_image.copy().astype(np.float32)
+            cn_mask = inpaint_worker.current_task.interested_mask.astype(np.float32) / 255.0
+            cn_img = cn_img * (1.0 - cn_mask[..., np.newaxis])
+            cn_img = core.numpy_to_pytorch(cn_img)
+            positive_cond, negative_cond = core.apply_controlnet(
+                positive_cond, negative_cond,
+                pipeline.loaded_ControlNets[controlnet_inpaint_path],
+                cn_img, 1.0, 0, 1.0)
         imgs = pipeline.process_diffusion(
             positive_cond=positive_cond,
             negative_cond=negative_cond,
@@ -553,7 +562,7 @@ def worker():
             pixels=inpaint_pixel_fill)['samples']
         inpaint_worker.current_task.load_latent(
             latent_fill=latent_fill, latent_mask=latent_mask, latent_swap=latent_swap)
-        if inpaint_parameterized:
+        if inpaint_parameterized and inpaint_head_model_path is not None:
             pipeline.final_unet = inpaint_worker.current_task.patch(
                 inpaint_head_model_path=inpaint_head_model_path,
                 inpaint_latent=latent_inpaint,
@@ -903,6 +912,7 @@ def worker():
 
     def apply_image_input(async_task, base_model_additional_loras, clip_vision_path, controlnet_canny_path,
                           controlnet_cpds_path, controlnet_anytest_path, controlnet_anytest_b_path,
+                          controlnet_inpaint_path,
                           goals, inpaint_head_model_path, inpaint_image, inpaint_mask,
                           inpaint_parameterized,  ip_adapter_face_path, ip_adapter_path, ip_negative_path,
                           skip_prompt_processing, use_synthetic_refiner):
@@ -951,8 +961,12 @@ def worker():
                     progressbar(async_task, 1, 'Downloading inpainter ...')
                     inpaint_head_model_path, inpaint_patch_model_path = modules.config.downloading_inpaint_models(
                         async_task.inpaint_engine)
-                    base_model_additional_loras += [(inpaint_patch_model_path, 1.0)]
-                    print(f'[Inpaint] Current inpaint model is {inpaint_patch_model_path}')
+                    if inpaint_patch_model_path is not None:
+                        base_model_additional_loras += [(inpaint_patch_model_path, 1.0)]
+                        print(f'[Inpaint] Current inpaint model is {inpaint_patch_model_path}')
+                    if async_task.inpaint_engine == 'noobai':
+                        controlnet_inpaint_path = modules.config.downloading_inpaint_controlnet_noobai()
+                        print(f'[Inpaint] Current inpaint ControlNet is {controlnet_inpaint_path}')
                     if async_task.refiner_model_name == 'None':
                         use_synthetic_refiner = True
                         async_task.refiner_switch = 0.8
@@ -987,7 +1001,7 @@ def worker():
             goals.append('enhance')
             skip_prompt_processing = True
             async_task.enhance_input_image = HWC3(async_task.enhance_input_image)
-        return base_model_additional_loras, clip_vision_path, controlnet_canny_path, controlnet_cpds_path, controlnet_anytest_path, controlnet_anytest_b_path, inpaint_head_model_path, inpaint_image, inpaint_mask, ip_adapter_face_path, ip_adapter_path, ip_negative_path, skip_prompt_processing, use_synthetic_refiner
+        return base_model_additional_loras, clip_vision_path, controlnet_canny_path, controlnet_cpds_path, controlnet_anytest_path, controlnet_anytest_b_path, controlnet_inpaint_path, inpaint_head_model_path, inpaint_image, inpaint_mask, ip_adapter_face_path, ip_adapter_path, ip_negative_path, skip_prompt_processing, use_synthetic_refiner
 
     def prepare_upscale(async_task, goals, uov_input_image, uov_method, performance, steps, current_progress,
                         advance_progress=False, skip_prompt_processing=False):
@@ -1024,7 +1038,7 @@ def worker():
         print(f'Processing time (total): {processing_time:.2f} seconds')
 
     def process_enhance(all_steps, async_task, callback, controlnet_canny_path, controlnet_cpds_path,
-                        controlnet_anytest_path, controlnet_anytest_b_path,
+                        controlnet_anytest_path, controlnet_anytest_b_path, controlnet_inpaint_path,
                         current_progress, current_task_id, denoising_strength, inpaint_disable_initial_latent,
                         inpaint_engine, inpaint_respective_field, inpaint_strength,
                         prompt, negative_prompt, final_scheduler_name, goals, height, img, mask,
@@ -1034,6 +1048,8 @@ def worker():
         inpaint_head_model_path = None
         inpaint_parameterized = inpaint_engine != 'None'  # inpaint_engine = None, improve detail
         initial_latent = None
+        if inpaint_engine != 'noobai':
+            controlnet_inpaint_path = None
 
         prompt = prepare_enhance_prompt(prompt, async_task.prompt, async_task.translate_prompts, 'prompt')
         negative_prompt = prepare_enhance_prompt(negative_prompt, async_task.negative_prompt,
@@ -1060,8 +1076,18 @@ def worker():
             progressbar(async_task, current_progress, 'Downloading inpainter ...')
             inpaint_head_model_path, inpaint_patch_model_path = modules.config.downloading_inpaint_models(
                 inpaint_engine)
-            if inpaint_patch_model_path not in base_model_additional_loras:
+            if inpaint_patch_model_path is not None and (inpaint_patch_model_path, 1.0) not in base_model_additional_loras:
                 base_model_additional_loras += [(inpaint_patch_model_path, 1.0)]
+            if inpaint_engine == 'noobai':
+                controlnet_inpaint_path = modules.config.downloading_inpaint_controlnet_noobai()
+                print(f'[Enhance] Current inpaint ControlNet is {controlnet_inpaint_path}')
+                pipeline.refresh_controlnets([
+                    controlnet_canny_path,
+                    controlnet_cpds_path,
+                    controlnet_anytest_path,
+                    controlnet_anytest_b_path,
+                    controlnet_inpaint_path,
+                ])
         progressbar(async_task, current_progress, 'Preparing enhance prompts ...')
         # positive and negative conditioning aren't available here anymore, process prompt again
         tasks_enhance, use_expansion, loras, current_progress = process_prompt(
@@ -1082,7 +1108,7 @@ def worker():
                 current_progress, True)
         imgs, img_paths, current_progress = process_task(all_steps, async_task, callback, controlnet_canny_path,
                                                          controlnet_cpds_path, controlnet_anytest_path,
-                                                         controlnet_anytest_b_path, current_task_id, denoising_strength,
+                                                         controlnet_anytest_b_path, controlnet_inpaint_path, current_task_id, denoising_strength,
                                                          final_scheduler_name, goals, initial_latent, steps, switch,
                                                          task_enhance['c'], task_enhance['uc'], task_enhance, loras,
                                                          tiled, use_expansion, width, height, current_progress,
@@ -1093,7 +1119,7 @@ def worker():
         return current_progress, imgs[0], prompt, negative_prompt
 
     def enhance_upscale(all_steps, async_task, base_progress, callback, controlnet_canny_path, controlnet_cpds_path,
-                        controlnet_anytest_path, controlnet_anytest_b_path,
+                        controlnet_anytest_path, controlnet_anytest_b_path, controlnet_inpaint_path,
                         current_task_id, denoising_strength, done_steps_inpainting, done_steps_upscaling, enhance_steps,
                         prompt, negative_prompt, final_scheduler_name, height, img, preparation_steps, switch, tiled,
                         total_count, use_expansion, use_style, use_synthetic_refiner, width, persist_image=True):
@@ -1111,7 +1137,7 @@ def worker():
             try:
                 current_progress, img, prompt, negative_prompt = process_enhance(
                     all_steps, async_task, callback, controlnet_canny_path,
-                    controlnet_cpds_path, controlnet_anytest_path, controlnet_anytest_b_path,
+                    controlnet_cpds_path, controlnet_anytest_path, controlnet_anytest_b_path, controlnet_inpaint_path,
                     current_progress, current_task_id, denoising_strength, False,
                     'None', 0.0, 0.0, prompt, negative_prompt, final_scheduler_name,
                     goals_enhance, height, img, None, preparation_steps, steps, switch, tiled, total_count,
@@ -1204,6 +1230,7 @@ def worker():
         controlnet_cpds_path = None
         controlnet_anytest_path = None
         controlnet_anytest_b_path = None
+        controlnet_inpaint_path = None
         clip_vision_path, ip_negative_path, ip_adapter_path, ip_adapter_face_path = None, None, None, None
 
         goals = []
@@ -1211,15 +1238,15 @@ def worker():
         current_progress = 1
 
         if async_task.input_image_checkbox:
-            base_model_additional_loras, clip_vision_path, controlnet_canny_path, controlnet_cpds_path, controlnet_anytest_path, controlnet_anytest_b_path, inpaint_head_model_path, inpaint_image, inpaint_mask, ip_adapter_face_path, ip_adapter_path, ip_negative_path, skip_prompt_processing, use_synthetic_refiner = apply_image_input(
+            base_model_additional_loras, clip_vision_path, controlnet_canny_path, controlnet_cpds_path, controlnet_anytest_path, controlnet_anytest_b_path, controlnet_inpaint_path, inpaint_head_model_path, inpaint_image, inpaint_mask, ip_adapter_face_path, ip_adapter_path, ip_negative_path, skip_prompt_processing, use_synthetic_refiner = apply_image_input(
                 async_task, base_model_additional_loras, clip_vision_path, controlnet_canny_path, controlnet_cpds_path,
-                controlnet_anytest_path, controlnet_anytest_b_path,
+                controlnet_anytest_path, controlnet_anytest_b_path, controlnet_inpaint_path,
                 goals, inpaint_head_model_path, inpaint_image, inpaint_mask, inpaint_parameterized, ip_adapter_face_path,
                 ip_adapter_path, ip_negative_path, skip_prompt_processing, use_synthetic_refiner)
 
         # Load or unload CNs
         progressbar(async_task, current_progress, 'Loading control models ...')
-        pipeline.refresh_controlnets([controlnet_canny_path, controlnet_cpds_path, controlnet_anytest_path, controlnet_anytest_b_path])
+        pipeline.refresh_controlnets([controlnet_canny_path, controlnet_cpds_path, controlnet_anytest_path, controlnet_anytest_b_path, controlnet_inpaint_path])
         ip_adapter.load_ip_adapter(clip_vision_path, ip_negative_path, ip_adapter_path)
         ip_adapter.load_ip_adapter(clip_vision_path, ip_negative_path, ip_adapter_face_path)
 
@@ -1360,7 +1387,7 @@ def worker():
             try:
                 imgs, img_paths, current_progress = process_task(all_steps, async_task, callback, controlnet_canny_path,
                                                                  controlnet_cpds_path, controlnet_anytest_path,
-                                                                 controlnet_anytest_b_path, current_task_id,
+                                                                 controlnet_anytest_b_path, controlnet_inpaint_path, current_task_id,
                                                                  denoising_strength, final_scheduler_name, goals,
                                                                  initial_latent, async_task.steps, switch, task['c'],
                                                                  task['uc'], task, loras, tiled, use_expansion, width,
@@ -1420,7 +1447,7 @@ def worker():
                 persist_image = not async_task.save_final_enhanced_image_only or active_enhance_tabs == 0
                 current_task_id, done_steps_inpainting, done_steps_upscaling, img, exception_result = enhance_upscale(
                     all_steps, async_task, base_progress, callback, controlnet_canny_path, controlnet_cpds_path,
-                    controlnet_anytest_path, controlnet_anytest_b_path,
+                    controlnet_anytest_path, controlnet_anytest_b_path, controlnet_inpaint_path,
                     current_task_id, denoising_strength, done_steps_inpainting, done_steps_upscaling, enhance_steps,
                     async_task.prompt, async_task.negative_prompt, final_scheduler_name, height, img, preparation_steps,
                     switch, tiled, total_count, use_expansion, use_style, use_synthetic_refiner, width, persist_image)
@@ -1484,7 +1511,7 @@ def worker():
                 try:
                     current_progress, img, enhance_prompt_processed, enhance_negative_prompt_processed = process_enhance(
                         all_steps, async_task, callback, controlnet_canny_path, controlnet_cpds_path,
-                        controlnet_anytest_path, controlnet_anytest_b_path,
+                        controlnet_anytest_path, controlnet_anytest_b_path, controlnet_inpaint_path,
                         current_progress, current_task_id, denoising_strength, enhance_inpaint_disable_initial_latent,
                         enhance_inpaint_engine, enhance_inpaint_respective_field, enhance_inpaint_strength,
                         enhance_prompt, enhance_negative_prompt, final_scheduler_name, goals_enhance, height, img, mask,
@@ -1523,7 +1550,7 @@ def worker():
                 persist_image = True
                 current_task_id, done_steps_inpainting, done_steps_upscaling, img, exception_result = enhance_upscale(
                     all_steps, async_task, base_progress, callback, controlnet_canny_path, controlnet_cpds_path,
-                    controlnet_anytest_path, controlnet_anytest_b_path,
+                    controlnet_anytest_path, controlnet_anytest_b_path, controlnet_inpaint_path,
                     current_task_id, denoising_strength, done_steps_inpainting, done_steps_upscaling, enhance_steps,
                     last_enhance_prompt, last_enhance_negative_prompt, final_scheduler_name, height, img,
                     preparation_steps, switch, tiled, total_count, use_expansion, use_style, use_synthetic_refiner,
