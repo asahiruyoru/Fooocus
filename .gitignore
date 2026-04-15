@@ -55,15 +55,10 @@ user_path_config-deprecated.txt
 .DS_Store
 
 # Local work memos and debug files
-/docs/anima-preview2-*.md
-/docs/anima-preview2-*.ipynb
+/local-memo/
 /test_vae.py
 /comfyui_tmp/
 
 # Local workspace
 /.local/
 tmp_*
-
-# Allowed docs (override the wildcard above)
-!/docs/anima-preview2-colab.ipynb
-!/docs/anima-preview2-fixes.md
