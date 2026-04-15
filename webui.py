@@ -368,6 +368,43 @@ with shared.gradio_root:
                                     queue=False
                                 )
 
+                    with gr.Tab(label='NoobAI Outpaint', id='noobai_outpaint_tab') as noobai_outpaint_tab:
+                        with gr.Row():
+                            with gr.Column():
+                                noobai_outpaint_input_image = grh.Image(
+                                    label='Image',
+                                    source='upload',
+                                    type='numpy',
+                                    tool='sketch',
+                                    height=500,
+                                    brush_color="#FFFFFF",
+                                    elem_id='noobai_outpaint_canvas',
+                                    show_label=False
+                                )
+                                noobai_outpaint_additional_prompt = gr.Textbox(
+                                    placeholder="Describe what you want to outpaint with NoobAI.",
+                                    elem_id='noobai_outpaint_additional_prompt',
+                                    label='NoobAI Outpaint Additional Prompt'
+                                )
+                                noobai_outpaint_selections = gr.CheckboxGroup(
+                                    choices=['Left', 'Right', 'Top', 'Bottom'],
+                                    value=[],
+                                    label='NoobAI Outpaint Direction'
+                                )
+                                noobai_example_outpaint_prompts = gr.Dataset(
+                                    samples=modules.config.example_inpaint_prompts,
+                                    label='Additional Prompt Quick List',
+                                    components=[noobai_outpaint_additional_prompt]
+                                )
+                                gr.HTML('* Dedicated tab for the NoobAI ControlNet-based outpaint flow. Upload the image, choose the expansion side, and keep shared denoising/respective-field settings in Advanced -> Inpaint.')
+                                noobai_example_outpaint_prompts.click(
+                                    lambda x: x[0],
+                                    inputs=noobai_example_outpaint_prompts,
+                                    outputs=noobai_outpaint_additional_prompt,
+                                    show_progress=False,
+                                    queue=False
+                                )
+
                     with gr.Tab(label='Describe', id='describe_tab') as describe_tab:
                         with gr.Row():
                             with gr.Column():
@@ -591,6 +628,7 @@ with shared.gradio_root:
             uov_tab.select(lambda: 'uov', outputs=current_tab, queue=False, _js=down_js, show_progress=False)
             inpaint_tab.select(lambda: 'inpaint', outputs=current_tab, queue=False, _js=down_js, show_progress=False)
             noobai_inpaint_tab.select(lambda: 'noobai_inpaint', outputs=current_tab, queue=False, _js=down_js, show_progress=False)
+            noobai_outpaint_tab.select(lambda: 'noobai_outpaint', outputs=current_tab, queue=False, _js=down_js, show_progress=False)
             ip_tab.select(lambda: 'ip', outputs=current_tab, queue=False, _js=down_js, show_progress=False)
             describe_tab.select(lambda: 'desc', outputs=current_tab, queue=False, _js=down_js, show_progress=False)
             enhance_tab.select(lambda: 'enhance', outputs=current_tab, queue=False, _js=down_js, show_progress=False)
@@ -1072,6 +1110,7 @@ with shared.gradio_root:
         ctrls += [uov_method, uov_input_image]
         ctrls += [outpaint_selections, inpaint_input_image, inpaint_additional_prompt, inpaint_mask_image]
         ctrls += [noobai_inpaint_input_image, noobai_inpaint_additional_prompt]
+        ctrls += [noobai_outpaint_selections, noobai_outpaint_input_image, noobai_outpaint_additional_prompt]
         ctrls += [disable_preview, disable_intermediate_results, disable_seed_increment, black_out_nsfw]
         ctrls += [adm_scaler_positive, adm_scaler_negative, adm_scaler_end, adaptive_cfg, clip_skip]
         ctrls += [sampler_name, scheduler_name, vae_name]
