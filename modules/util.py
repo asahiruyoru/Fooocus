@@ -101,6 +101,29 @@ def resize_image(im, width, height, resize_mode=1):
     return np.array(res)
 
 
+def resize_image_fit(im, width, height, fill=0):
+    im = Image.fromarray(im)
+
+    if isinstance(fill, int):
+        if im.mode == 'RGB':
+            fill = (fill, fill, fill)
+        elif im.mode == 'RGBA':
+            fill = (fill, fill, fill, fill)
+
+    def resize(im, w, h):
+        return im.resize((w, h), resample=LANCZOS)
+
+    scale = min(width / im.width, height / im.height)
+    src_w = max(1, int(round(im.width * scale)))
+    src_h = max(1, int(round(im.height * scale)))
+
+    resized = resize(im, src_w, src_h)
+    res = Image.new(im.mode, (width, height), color=fill)
+    res.paste(resized, box=((width - src_w) // 2, (height - src_h) // 2))
+
+    return np.array(res)
+
+
 def get_shape_ceil(h, w):
     return math.ceil(((h * w) ** 0.5) / 64.0) * 64.0
 
