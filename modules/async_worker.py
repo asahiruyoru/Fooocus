@@ -931,7 +931,12 @@ def worker():
                 async_task.current_tab == 'ip' and async_task.mixing_image_prompt_and_inpaint)) \
                 and isinstance(async_task.inpaint_input_image, dict):
             inpaint_image = async_task.inpaint_input_image['image']
-            inpaint_mask = async_task.inpaint_input_image['mask'][:, :, 0]
+            inpaint_mask_data = async_task.inpaint_input_image.get('mask')
+            if isinstance(inpaint_mask_data, np.ndarray):
+                inpaint_mask = inpaint_mask_data[:, :, 0]
+            else:
+                H, W = inpaint_image.shape[:2]
+                inpaint_mask = np.zeros((H, W), dtype=np.uint8)
 
             if async_task.inpaint_advanced_masking_checkbox:
                 if isinstance(async_task.inpaint_mask_image_upload, dict):
