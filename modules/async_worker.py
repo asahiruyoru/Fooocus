@@ -200,7 +200,7 @@ def worker():
     from modules.sdxl_styles import apply_style, get_random_style, fooocus_expansion, apply_arrays, random_style_name
     from modules.private_logger import log
     from extras.expansion import safe_str
-    from modules.util import (remove_empty_str, HWC3, resize_image, get_image_shape_ceil, set_image_shape_ceil,
+    from modules.util import (remove_empty_str, HWC3, resize_image, resize_image_fit, get_image_shape_ceil, set_image_shape_ceil,
                               get_shape_ceil, resample_image, erode_or_dilate, parse_lora_references_from_prompt,
                               apply_wildcards)
     from modules.upscaler import perform_upscale
@@ -437,24 +437,26 @@ def worker():
                 yield_result(async_task, cn_img, current_progress, async_task.black_out_nsfw, do_not_show_finished_images=True)
         for task in async_task.cn_tasks[flags.cn_anytest]:
             cn_img, cn_stop, cn_weight = task
-            cn_img = resize_image(HWC3(cn_img), width=width, height=height)
+            cn_img = HWC3(cn_img)
 
             if not async_task.skipping_cn_preprocessor:
                 cn_img = preprocessors.canny_pyramid(cn_img, async_task.canny_low_threshold,
                                                      async_task.canny_high_threshold)
 
             cn_img = HWC3(cn_img)
+            cn_img = resize_image_fit(cn_img, width=width, height=height)
             task[0] = core.numpy_to_pytorch(cn_img)
             if async_task.debugging_cn_preprocessor:
                 yield_result(async_task, cn_img, current_progress, async_task.black_out_nsfw, do_not_show_finished_images=True)
         for task in async_task.cn_tasks[flags.cn_anytest_b]:
             cn_img, cn_stop, cn_weight = task
-            cn_img = resize_image(HWC3(cn_img), width=width, height=height)
+            cn_img = HWC3(cn_img)
 
             if not async_task.skipping_cn_preprocessor:
                 cn_img = preprocessors.cpds(cn_img)
 
             cn_img = HWC3(cn_img)
+            cn_img = resize_image_fit(cn_img, width=width, height=height)
             task[0] = core.numpy_to_pytorch(cn_img)
             if async_task.debugging_cn_preprocessor:
                 yield_result(async_task, cn_img, current_progress, async_task.black_out_nsfw, do_not_show_finished_images=True)
