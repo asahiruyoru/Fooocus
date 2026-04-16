@@ -112,8 +112,9 @@ class AsyncTask:
             cn_stop = args.pop()
             cn_weight = args.pop()
             cn_type = args.pop()
+            cn_square_crop = args.pop()
             if cn_img is not None:
-                self.cn_tasks[cn_type].append([cn_img, cn_stop, cn_weight])
+                self.cn_tasks[cn_type].append([cn_img, cn_stop, cn_weight, cn_square_crop])
 
         self.debugging_dino = args.pop()
         self.dino_erode_or_dilate = args.pop()
@@ -298,7 +299,7 @@ def worker():
                 (flags.cn_anytest_a, controlnet_anytest_a_path),
                 (flags.cn_anytest_b, controlnet_anytest_b_path),
             ]:
-                for cn_img, cn_stop, cn_weight in async_task.cn_tasks[cn_flag]:
+                for cn_img, cn_stop, cn_weight, cn_square_crop in async_task.cn_tasks[cn_flag]:
                     positive_cond, negative_cond = core.apply_controlnet(
                         positive_cond, negative_cond,
                         pipeline.loaded_ControlNets[cn_path], cn_img, cn_weight, 0, cn_stop)
@@ -412,70 +413,75 @@ def worker():
 
         return img_paths
 
+    def preprocess_controlnet_image(async_task, cn_img, width, height, square_crop, preprocessor=None):
+        cn_img = HWC3(cn_img)
+
+        if square_crop:
+            cn_img = resize_image(cn_img, width=width, height=height)
+            if preprocessor is not None and not async_task.skipping_cn_preprocessor:
+                cn_img = preprocessor(cn_img)
+        else:
+            if preprocessor is not None and not async_task.skipping_cn_preprocessor:
+                cn_img = preprocessor(cn_img)
+            cn_img = HWC3(cn_img)
+            cn_img = resize_image_fit(cn_img, width=width, height=height)
+
+        return HWC3(cn_img)
+
     def apply_control_nets(async_task, height, ip_adapter_face_path, ip_adapter_path, width, current_progress):
         for task in async_task.cn_tasks[flags.cn_canny]:
-            cn_img, cn_stop, cn_weight = task
-            cn_img = resize_image(HWC3(cn_img), width=width, height=height)
-
-            if not async_task.skipping_cn_preprocessor:
-                cn_img = preprocessors.canny_pyramid(cn_img, async_task.canny_low_threshold,
-                                                     async_task.canny_high_threshold)
-
-            cn_img = HWC3(cn_img)
+            cn_img, cn_stop, cn_weight, cn_square_crop = task
+            cn_img = preprocess_controlnet_image(
+                async_task,
+                cn_img,
+                width,
+                height,
+                cn_square_crop,
+                lambda x: preprocessors.canny_pyramid(x, async_task.canny_low_threshold, async_task.canny_high_threshold)
+            )
             task[0] = core.numpy_to_pytorch(cn_img)
             if async_task.debugging_cn_preprocessor:
                 yield_result(async_task, cn_img, current_progress, async_task.black_out_nsfw, do_not_show_finished_images=True)
         for task in async_task.cn_tasks[flags.cn_cpds]:
-            cn_img, cn_stop, cn_weight = task
-            cn_img = resize_image(HWC3(cn_img), width=width, height=height)
-
-            if not async_task.skipping_cn_preprocessor:
-                cn_img = preprocessors.cpds(cn_img)
-
-            cn_img = HWC3(cn_img)
+            cn_img, cn_stop, cn_weight, cn_square_crop = task
+            cn_img = preprocess_controlnet_image(async_task, cn_img, width, height, cn_square_crop, preprocessors.cpds)
             task[0] = core.numpy_to_pytorch(cn_img)
             if async_task.debugging_cn_preprocessor:
                 yield_result(async_task, cn_img, current_progress, async_task.black_out_nsfw, do_not_show_finished_images=True)
         for task in async_task.cn_tasks[flags.cn_anytest]:
-            cn_img, cn_stop, cn_weight = task
-            cn_img = HWC3(cn_img)
-
-            if not async_task.skipping_cn_preprocessor:
-                cn_img = preprocessors.canny_pyramid(cn_img, async_task.canny_low_threshold,
-                                                     async_task.canny_high_threshold)
-
-            cn_img = HWC3(cn_img)
-            cn_img = resize_image_fit(cn_img, width=width, height=height)
+            cn_img, cn_stop, cn_weight, cn_square_crop = task
+            cn_img = preprocess_controlnet_image(
+                async_task,
+                cn_img,
+                width,
+                height,
+                cn_square_crop,
+                lambda x: preprocessors.canny_pyramid(x, async_task.canny_low_threshold, async_task.canny_high_threshold)
+            )
             task[0] = core.numpy_to_pytorch(cn_img)
             if async_task.debugging_cn_preprocessor:
                 yield_result(async_task, cn_img, current_progress, async_task.black_out_nsfw, do_not_show_finished_images=True)
         for task in async_task.cn_tasks[flags.cn_anytest_a]:
-            cn_img, cn_stop, cn_weight = task
-            cn_img = HWC3(cn_img)
-
-            if not async_task.skipping_cn_preprocessor:
-                cn_img = preprocessors.canny_pyramid(cn_img, async_task.canny_low_threshold,
-                                                     async_task.canny_high_threshold)
-
-            cn_img = HWC3(cn_img)
-            cn_img = resize_image_fit(cn_img, width=width, height=height)
+            cn_img, cn_stop, cn_weight, cn_square_crop = task
+            cn_img = preprocess_controlnet_image(
+                async_task,
+                cn_img,
+                width,
+                height,
+                cn_square_crop,
+                lambda x: preprocessors.canny_pyramid(x, async_task.canny_low_threshold, async_task.canny_high_threshold)
+            )
             task[0] = core.numpy_to_pytorch(cn_img)
             if async_task.debugging_cn_preprocessor:
                 yield_result(async_task, cn_img, current_progress, async_task.black_out_nsfw, do_not_show_finished_images=True)
         for task in async_task.cn_tasks[flags.cn_anytest_b]:
-            cn_img, cn_stop, cn_weight = task
-            cn_img = HWC3(cn_img)
-
-            if not async_task.skipping_cn_preprocessor:
-                cn_img = preprocessors.cpds(cn_img)
-
-            cn_img = HWC3(cn_img)
-            cn_img = resize_image_fit(cn_img, width=width, height=height)
+            cn_img, cn_stop, cn_weight, cn_square_crop = task
+            cn_img = preprocess_controlnet_image(async_task, cn_img, width, height, cn_square_crop, preprocessors.cpds)
             task[0] = core.numpy_to_pytorch(cn_img)
             if async_task.debugging_cn_preprocessor:
                 yield_result(async_task, cn_img, current_progress, async_task.black_out_nsfw, do_not_show_finished_images=True)
         for task in async_task.cn_tasks[flags.cn_ip]:
-            cn_img, cn_stop, cn_weight = task
+            cn_img, cn_stop, cn_weight, cn_square_crop = task
             cn_img = HWC3(cn_img)
 
             # https://github.com/tencent-ailab/IP-Adapter/blob/d580c50a291566bbf9fc7ac0f760506607297e6d/README.md?plain=1#L75
@@ -485,7 +491,7 @@ def worker():
             if async_task.debugging_cn_preprocessor:
                 yield_result(async_task, cn_img, current_progress, async_task.black_out_nsfw, do_not_show_finished_images=True)
         for task in async_task.cn_tasks[flags.cn_ip_face]:
-            cn_img, cn_stop, cn_weight = task
+            cn_img, cn_stop, cn_weight, cn_square_crop = task
             cn_img = HWC3(cn_img)
 
             if not async_task.skipping_cn_preprocessor:
@@ -695,25 +701,29 @@ def worker():
             height = async_task.overwrite_height
         return steps, switch, width, height
 
-    def apply_anytest_input_size(async_task, width, height):
+    def apply_controlnet_input_size(async_task, width, height):
         if async_task.current_tab != 'ip':
             return width, height
 
-        anytest_tasks = async_task.cn_tasks[flags.cn_anytest] + async_task.cn_tasks[flags.cn_anytest_a] + async_task.cn_tasks[flags.cn_anytest_b]
-        anytest_images = [cn_img for cn_img, _, _ in anytest_tasks if isinstance(cn_img, np.ndarray) and cn_img.ndim >= 2]
-        if len(anytest_images) == 0:
+        controlnet_tasks = []
+        for cn_flag in [flags.cn_canny, flags.cn_cpds, flags.cn_anytest, flags.cn_anytest_a, flags.cn_anytest_b]:
+            controlnet_tasks += async_task.cn_tasks[cn_flag]
+
+        controlnet_images = [cn_img for cn_img, _, _, cn_square_crop in controlnet_tasks
+                             if isinstance(cn_img, np.ndarray) and cn_img.ndim >= 2 and not cn_square_crop]
+        if len(controlnet_images) == 0:
             return width, height
 
-        ref_height, ref_width = anytest_images[0].shape[:2]
+        ref_height, ref_width = controlnet_images[0].shape[:2]
         target_width = max(8, int(round(ref_width / 8.0)) * 8)
         target_height = max(8, int(round(ref_height / 8.0)) * 8)
 
-        unique_shapes = sorted({(img.shape[1], img.shape[0]) for img in anytest_images})
+        unique_shapes = sorted({(img.shape[1], img.shape[0]) for img in controlnet_images})
         if len(unique_shapes) > 1:
-            print(f'[AnyTest] Multiple input sizes detected {unique_shapes}; using the first one.')
+            print(f'[ControlNet] Multiple input sizes detected {unique_shapes}; using the first one.')
 
         if (target_width, target_height) != (width, height):
-            print(f'[AnyTest] Using input image size {(ref_width, ref_height)} as generation resolution -> {(target_width, target_height)}.')
+            print(f'[ControlNet] Using input image size {(ref_width, ref_height)} as generation resolution -> {(target_width, target_height)}.')
 
         return target_width, target_height
 
@@ -1319,7 +1329,7 @@ def worker():
         ip_adapter.load_ip_adapter(clip_vision_path, ip_negative_path, ip_adapter_path)
         ip_adapter.load_ip_adapter(clip_vision_path, ip_negative_path, ip_adapter_face_path)
 
-        width, height = apply_anytest_input_size(async_task, width, height)
+        width, height = apply_controlnet_input_size(async_task, width, height)
         async_task.steps, switch, width, height = apply_overrides(async_task, async_task.steps, height, width)
 
         print(f'[Parameters] Sampler = {async_task.sampler_name} - {async_task.scheduler_name}')
