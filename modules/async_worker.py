@@ -681,6 +681,28 @@ def worker():
             height = async_task.overwrite_height
         return steps, switch, width, height
 
+    def apply_anytest_input_size(async_task, width, height):
+        if async_task.current_tab != 'ip':
+            return width, height
+
+        anytest_tasks = async_task.cn_tasks[flags.cn_anytest] + async_task.cn_tasks[flags.cn_anytest_b]
+        anytest_images = [cn_img for cn_img, _, _ in anytest_tasks if isinstance(cn_img, np.ndarray) and cn_img.ndim >= 2]
+        if len(anytest_images) == 0:
+            return width, height
+
+        ref_height, ref_width = anytest_images[0].shape[:2]
+        target_width = max(8, int(round(ref_width / 8.0)) * 8)
+        target_height = max(8, int(round(ref_height / 8.0)) * 8)
+
+        unique_shapes = sorted({(img.shape[1], img.shape[0]) for img in anytest_images})
+        if len(unique_shapes) > 1:
+            print(f'[AnyTest] Multiple input sizes detected {unique_shapes}; using the first one.')
+
+        if (target_width, target_height) != (width, height):
+            print(f'[AnyTest] Using input image size {(ref_width, ref_height)} as generation resolution -> {(target_width, target_height)}.')
+
+        return target_width, target_height
+
     def process_prompt(async_task, prompt, negative_prompt, base_model_additional_loras, image_number, disable_seed_increment, use_expansion, use_style,
                        use_synthetic_refiner, current_progress, advance_progress=False):
         prompts = remove_empty_str([safe_str(p) for p in prompt.splitlines()], default='')
@@ -1279,6 +1301,7 @@ def worker():
         ip_adapter.load_ip_adapter(clip_vision_path, ip_negative_path, ip_adapter_path)
         ip_adapter.load_ip_adapter(clip_vision_path, ip_negative_path, ip_adapter_face_path)
 
+        width, height = apply_anytest_input_size(async_task, width, height)
         async_task.steps, switch, width, height = apply_overrides(async_task, async_task.steps, height, width)
 
         print(f'[Parameters] Sampler = {async_task.sampler_name} - {async_task.scheduler_name}')
