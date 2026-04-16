@@ -130,11 +130,13 @@ git pull
 ..\python_embeded\python.exe -m pip install -r "requirements_versions.txt"
 ```
 
-### Colab (Anima Preview3 / Preview2 / Animayume)
+### Colab (WAI Anima / Anima Preview3 / Preview2 / Animayume)
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/asahiruyoru/Fooocus/blob/main/notebooks/fooocus_anima_colab.ipynb)
 
-ノートブックの設定セルでモデルプロファイル (`anima_preview3` / `anima_preview2` / `animayume_v03`) やステップ数を選択できます。デフォルトは `anima_preview3` です。
+ノートブックの設定セルでモデルプロファイル (`wai_anima` / `anima_preview3` / `anima_preview2` / `animayume_v03`) やステップ数を選択できます。デフォルトは [`wai_anima`](https://civitai.com/models/2544636/wai-anima) (Anima アーキテクチャの finetune) です。
+
+> WAI Anima を含む Anima 系チェックポイントは、別途 Qwen3 テキストエンコーダ (`qwen_3_06b_base.safetensors`) と Qwen Image VAE (`qwen_image_vae.safetensors`) をペアでロードします。ノートブックが自動でダウンロードします。
 
 > T4/L4 クラス GPU では `--always-gpu` 推奨 (ピーク VRAM 約 11.4GB)。VRAM が足りない場合は `--always-high-vram` にフォールバック。
 
