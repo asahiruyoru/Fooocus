@@ -217,6 +217,7 @@ with shared.gradio_root:
                         ip_types = []
                         ip_stops = []
                         ip_weights = []
+                        ip_square_crops = []
                         ip_ctrls = []
                         ip_ad_cols = []
                         controlnet_slots_per_row = 3
@@ -244,6 +245,14 @@ with shared.gradio_root:
                                             ip_types.append(ip_type)
                                             ip_ctrls.append(ip_type)
 
+                                            ip_square_crop = gr.Checkbox(
+                                                label='Use Square Crop',
+                                                value=modules.config.default_ip_square_crops[image_count],
+                                                info='Use the old center-square crop behavior for ControlNet types.'
+                                            )
+                                            ip_square_crops.append(ip_square_crop)
+                                            ip_ctrls.append(ip_square_crop)
+
                                             ip_type.change(lambda x: flags.default_parameters[x], inputs=[ip_type], outputs=[ip_stop, ip_weight], queue=False, show_progress=False)
                                         ip_ad_cols.append(ad_col)
                         ip_advanced = gr.Checkbox(label='Advanced', value=modules.config.default_image_prompt_advanced_checkbox, container=False)
@@ -253,10 +262,11 @@ with shared.gradio_root:
                             return [gr.update(visible=x)] * len(ip_ad_cols) + \
                                 [flags.default_ip] * len(ip_types) + \
                                 [flags.default_parameters[flags.default_ip][0]] * len(ip_stops) + \
-                                [flags.default_parameters[flags.default_ip][1]] * len(ip_weights)
+                                [flags.default_parameters[flags.default_ip][1]] * len(ip_weights) + \
+                                [False] * len(ip_square_crops)
 
                         ip_advanced.change(ip_advance_checked, inputs=ip_advanced,
-                                           outputs=ip_ad_cols + ip_types + ip_stops + ip_weights,
+                                           outputs=ip_ad_cols + ip_types + ip_stops + ip_weights + ip_square_crops,
                                            queue=False, show_progress=False)
 
                     with gr.Tab(label='Inpaint or Outpaint', id='inpaint_tab') as inpaint_tab:
