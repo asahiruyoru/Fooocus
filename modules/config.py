@@ -927,6 +927,15 @@ def downloading_controlnet_anytest():
     return os.path.join(path_controlnet, 'CN-anytest_v4-marged.safetensors')
 
 
+def downloading_controlnet_anytest_a():
+    load_file_from_url(
+        url='https://huggingface.co/2vXpSwA7/iroiro-lora/resolve/main/test_controlnet2/CN-anytest4_illustrious2_A.safetensors',
+        model_dir=path_controlnet,
+        file_name='CN-anytest4_illustrious2_A.safetensors'
+    )
+    return os.path.join(path_controlnet, 'CN-anytest4_illustrious2_A.safetensors')
+
+
 def downloading_controlnet_anytest_b():
     load_file_from_url(
         url='https://huggingface.co/2vXpSwA7/iroiro-lora/resolve/main/test_controlnet2/CN-anytest4_illustrious2_B.safetensors',
