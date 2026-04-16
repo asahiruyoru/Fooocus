@@ -517,6 +517,7 @@ default_ip_images = {}
 default_ip_stop_ats = {}
 default_ip_weights = {}
 default_ip_types = {}
+default_ip_square_crops = {}
 
 for image_count in range(default_controlnet_image_count):
     image_count += 1
@@ -550,6 +551,12 @@ for image_count in range(default_controlnet_image_count):
         default_value=default_weight,
         validator=lambda x: isinstance(x, float) and 0 <= x <= 2,
         expected_type=float
+    )
+    default_ip_square_crops[image_count] = get_config_item_or_set_default(
+        key=f'default_ip_square_crop_{image_count}',
+        default_value=False,
+        validator=lambda x: isinstance(x, bool),
+        expected_type=bool
     )
 
 default_inpaint_advanced_masking_checkbox = get_config_item_or_set_default(
