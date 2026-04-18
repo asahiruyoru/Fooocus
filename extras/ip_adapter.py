@@ -215,7 +215,8 @@ def patch_model(model, tasks):
             v = [value_attn2]
             b, _, _ = q.shape
 
-            for (cs, ucs), cn_stop, cn_weight in tasks:
+            for task in tasks:
+                (cs, ucs), cn_stop, cn_weight = task[:3]
                 if current_step < cn_stop:
                     ip_k_c = cs[ip_index * 2].to(q)
                     ip_v_c = cs[ip_index * 2 + 1].to(q)

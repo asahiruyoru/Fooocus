@@ -100,10 +100,52 @@ div:has(> #positive_prompt) {
 
 .advanced_check_row {
   width: 330px !important;
+  gap: 12px !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+}
+
+.advanced_check_row > div {
+  width: auto !important;
+  min-width: 0 !important;
+  flex: 0 0 auto !important;
+}
+
+.input_source_check_row {
+  width: 100% !important;
+  gap: 8px !important;
+  flex-wrap: wrap !important;
+}
+
+.input_source_check_row > div {
+  width: auto !important;
+  min-width: 0 !important;
+  flex: 0 0 auto !important;
 }
 
 .min_check {
-  min-width: min(1px, 100%) !important;
+  min-width: 0 !important;
+  flex: 0 1 auto !important;
+}
+
+.min_check label span {
+  white-space: normal !important;
+  line-height: 1.2 !important;
+}
+
+.run_summary {
+  margin-top: 6px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.run_summary p {
+  margin: 0 0 8px 0;
+}
+
+.run_summary p:last-child {
+  margin-bottom: 0;
 }
 
 .resizable_area {

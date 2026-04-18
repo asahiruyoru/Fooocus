@@ -1,6 +1,7 @@
 import threading
 
 from extras.inpaint_mask import generate_mask_from_image, SAMOptions
+from modules.image_input_selection import merge_noobai_inpaint_inputs, resolve_image_input_selection
 from modules.patch import PatchSettings, patch_settings, patch_all
 import modules.config
 
@@ -49,6 +50,11 @@ class AsyncTask:
         self.loras = get_enabled_loras([(bool(args.pop()), str(args.pop()), float(args.pop())) for _ in
                                         range(default_max_lora_number)])
         self.input_image_checkbox = args.pop()
+        self.use_uov_input = args.pop()
+        self.use_ip_input = args.pop()
+        self.use_inpaint_input = args.pop()
+        self.use_noobai_inpaint_input = args.pop()
+        self.use_noobai_outpaint_input = args.pop()
         self.current_tab = args.pop()
         self.uov_method = args.pop()
         self.uov_input_image = args.pop()
@@ -164,6 +170,20 @@ class AsyncTask:
         self.should_enhance = self.enhance_checkbox and (self.enhance_uov_method != disabled.casefold() or len(self.enhance_ctrls) > 0)
         self.images_to_enhance_count = 0
         self.enhance_stats = {}
+        selection = resolve_image_input_selection(
+            self.input_image_checkbox,
+            self.current_tab,
+            self.use_uov_input,
+            self.use_ip_input,
+            self.use_inpaint_input,
+            self.use_noobai_inpaint_input,
+            self.use_noobai_outpaint_input,
+        )
+        self.manual_input_source_selection = selection['manual_selection']
+        self.active_image_tabs = selection['active_tabs']
+        self.active_inpaint_tabs = selection['active_inpaint_tabs']
+        self.active_inpaint_tab = selection['active_inpaint_tab']
+        self.image_input_conflict_message = selection['conflict_message']
 
 async_tasks = []
 
@@ -702,7 +722,12 @@ def worker():
         return steps, switch, width, height
 
     def apply_controlnet_input_size(async_task, width, height):
-        if async_task.current_tab != 'ip':
+        if async_task.manual_input_source_selection:
+            use_ip_input = 'ip' in async_task.active_image_tabs
+        else:
+            use_ip_input = async_task.current_tab == 'ip'
+
+        if not use_ip_input:
             return width, height
 
         controlnet_tasks = []
@@ -969,15 +994,32 @@ def worker():
                           goals, inpaint_head_model_path, inpaint_image, inpaint_mask,
                           inpaint_parameterized,  ip_adapter_face_path, ip_adapter_path, ip_negative_path,
                           skip_prompt_processing, use_synthetic_refiner):
-        if (async_task.current_tab == 'uov' or (
-                async_task.current_tab == 'ip' and async_task.mixing_image_prompt_and_vary_upscale)) \
-                and async_task.uov_method != flags.disabled.casefold() and async_task.uov_input_image is not None:
+        if async_task.manual_input_source_selection:
+            use_uov_input = 'uov' in async_task.active_image_tabs
+            use_inpaint_input = len(async_task.active_inpaint_tabs) > 0
+            use_ip_input = 'ip' in async_task.active_image_tabs
+        else:
+            use_uov_input = (
+                async_task.current_tab == 'uov' or
+                (async_task.current_tab == 'ip' and async_task.mixing_image_prompt_and_vary_upscale)
+            )
+            use_inpaint_input = (
+                async_task.current_tab == 'inpaint' or
+                async_task.current_tab == 'noobai_inpaint' or
+                async_task.current_tab == 'noobai_outpaint' or
+                (async_task.current_tab == 'ip' and async_task.mixing_image_prompt_and_inpaint)
+            )
+            use_ip_input = (
+                async_task.current_tab == 'ip' or
+                async_task.mixing_image_prompt_and_vary_upscale or
+                async_task.mixing_image_prompt_and_inpaint
+            )
+
+        if use_uov_input and async_task.uov_method != flags.disabled.casefold() and async_task.uov_input_image is not None:
             async_task.uov_input_image, skip_prompt_processing, async_task.steps = prepare_upscale(
                 async_task, goals, async_task.uov_input_image, async_task.uov_method, async_task.performance_selection,
                 async_task.steps, 1, skip_prompt_processing=skip_prompt_processing)
-        if (async_task.current_tab == 'inpaint' or async_task.current_tab == 'noobai_inpaint' or async_task.current_tab == 'noobai_outpaint' or (
-                async_task.current_tab == 'ip' and async_task.mixing_image_prompt_and_inpaint)) \
-                and isinstance(async_task.inpaint_input_image, dict):
+        if use_inpaint_input and isinstance(async_task.inpaint_input_image, dict):
             inpaint_image = async_task.inpaint_input_image['image']
             inpaint_mask_data = async_task.inpaint_input_image.get('mask')
             if isinstance(inpaint_mask_data, np.ndarray):
@@ -1037,9 +1079,7 @@ def worker():
                     else:
                         async_task.prompt = async_task.inpaint_additional_prompt + '\n' + async_task.prompt
                 goals.append('inpaint')
-        if async_task.current_tab == 'ip' or \
-                async_task.mixing_image_prompt_and_vary_upscale or \
-                async_task.mixing_image_prompt_and_inpaint:
+        if use_ip_input:
             goals.append('cn')
             progressbar(async_task, 1, 'Downloading control models ...')
             if len(async_task.cn_tasks[flags.cn_canny]) > 0:
@@ -1230,22 +1270,30 @@ def worker():
         async_task.uov_method = async_task.uov_method.casefold()
         async_task.enhance_uov_method = async_task.enhance_uov_method.casefold()
 
-        if async_task.current_tab == 'noobai_inpaint':
-            async_task.inpaint_input_image = async_task.noobai_inpaint_input_image
-            async_task.inpaint_additional_prompt = async_task.noobai_inpaint_additional_prompt
+        if len(async_task.active_image_tabs) > 0:
+            print(f'[Input] Active image tabs: {", ".join(async_task.active_image_tabs)}')
+        if async_task.image_input_conflict_message is not None:
+            print(async_task.image_input_conflict_message)
+
+        noobai_inputs = merge_noobai_inpaint_inputs(
+            async_task.active_inpaint_tabs,
+            async_task.noobai_inpaint_input_image,
+            async_task.noobai_inpaint_additional_prompt,
+            async_task.noobai_outpaint_input_image,
+            async_task.noobai_outpaint_additional_prompt,
+            async_task.noobai_outpaint_selections,
+        )
+
+        if noobai_inputs is not None:
+            async_task.inpaint_input_image = noobai_inputs['image']
+            async_task.inpaint_additional_prompt = noobai_inputs['additional_prompt']
             async_task.inpaint_mask_image_upload = None
             async_task.inpaint_advanced_masking_checkbox = False
             async_task.invert_mask_checkbox = False
-            async_task.outpaint_selections = []
+            async_task.outpaint_selections = [o.lower() for o in noobai_inputs['outpaint_selections']]
             async_task.inpaint_engine = 'noobai'
-        elif async_task.current_tab == 'noobai_outpaint':
-            async_task.inpaint_input_image = async_task.noobai_outpaint_input_image
-            async_task.inpaint_additional_prompt = async_task.noobai_outpaint_additional_prompt
-            async_task.inpaint_mask_image_upload = None
-            async_task.inpaint_advanced_masking_checkbox = False
-            async_task.invert_mask_checkbox = False
-            async_task.outpaint_selections = [o.lower() for o in async_task.noobai_outpaint_selections]
-            async_task.inpaint_engine = 'noobai'
+            if noobai_inputs['message'] is not None:
+                print(noobai_inputs['message'])
 
         if fooocus_expansion in async_task.style_selections:
             use_expansion = True
