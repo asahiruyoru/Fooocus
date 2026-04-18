@@ -3,6 +3,7 @@ import random
 import os
 import json
 import time
+import html as py_html
 import shared
 import modules.config
 import fooocus_version
@@ -23,12 +24,77 @@ from modules.private_logger import get_current_html_path
 from modules.ui_gradio_extensions import reload_javascript
 from modules.auth import auth_enabled, check_auth
 from modules.util import is_json
+from modules.image_input_selection import merge_noobai_inpaint_inputs
 
 def get_task(*args):
     args = list(args)
     args.pop(0)
 
     return worker.AsyncTask(args=args)
+
+
+def render_task_summary(task: worker.AsyncTask):
+    tab_labels = {
+        'uov': 'UOV',
+        'ip': '画像Prompt',
+        'inpaint': '通常Inpaint/Outpaint',
+        'noobai_inpaint': 'NoobAI Inpaint',
+        'noobai_outpaint': 'NoobAI Outpaint',
+    }
+
+    active_tabs = [tab_labels.get(tab, tab) for tab in getattr(task, 'active_image_tabs', [])]
+    if len(active_tabs) == 0:
+        current_tab = getattr(task, 'current_tab', '')
+        active_tabs = [tab_labels.get(current_tab, 'なし')]
+
+    additional_prompt = ''
+    if 'inpaint' in getattr(task, 'active_inpaint_tabs', []):
+        additional_prompt = (task.inpaint_additional_prompt or '').strip()
+    else:
+        noobai_inputs = merge_noobai_inpaint_inputs(
+            getattr(task, 'active_inpaint_tabs', []),
+            task.noobai_inpaint_input_image,
+            task.noobai_inpaint_additional_prompt,
+            task.noobai_outpaint_input_image,
+            task.noobai_outpaint_additional_prompt,
+            task.noobai_outpaint_selections,
+        )
+        if noobai_inputs is not None:
+            additional_prompt = (noobai_inputs['additional_prompt'] or '').strip()
+
+    notes = []
+    if len(active_tabs) == 1 and not task.manual_input_source_selection:
+        notes.append('上の入力タブ選択がすべてオフなので、現在開いているタブだけを使います。')
+    elif task.manual_input_source_selection:
+        notes.append('上でオンにしたタブだけを使います。')
+    if task.image_input_conflict_message is not None:
+        notes.append('通常InpaintとNoobAIが競合したため、NoobAIを優先します。')
+    if 'noobai_inpaint' in getattr(task, 'active_inpaint_tabs', []) and 'noobai_outpaint' in getattr(task, 'active_inpaint_tabs', []):
+        notes.append('NoobAI Inpaint と NoobAI Outpaint は 1 回の処理に統合されます。')
+
+    def line(title, value):
+        text = value.strip() if isinstance(value, str) else value
+        if text in [None, '']:
+            text = 'なし'
+        escaped = py_html.escape(str(text)).replace('\n', '<br>')
+        return f'<p><b>{py_html.escape(title)}:</b> {escaped}</p>'
+
+    summary = [
+        '<div class="run_summary">',
+        '<p><b>今回の実行内容</b></p>',
+        line('使用タブ', ', '.join(active_tabs)),
+        line('メインPrompt', task.prompt or ''),
+        line('Negative Prompt', task.negative_prompt or ''),
+    ]
+
+    if additional_prompt != '':
+        summary.append(line('追加Prompt', additional_prompt))
+
+    if len(notes) > 0:
+        summary.append(line('メモ', ' / '.join(notes)))
+
+    summary.append('</div>')
+    return gr.update(value=''.join(summary), visible=True)
 
 def generate_clicked(task: worker.AsyncTask):
     import ldm_patched.modules.model_management as model_management
@@ -200,10 +266,21 @@ with shared.gradio_root:
                     stop_button.click(stop_clicked, inputs=currentTask, outputs=currentTask, queue=False, show_progress=False, _js='cancelGenerateForever')
                     skip_button.click(skip_clicked, inputs=currentTask, outputs=currentTask, queue=False, show_progress=False)
             with gr.Row(elem_classes='advanced_check_row'):
-                input_image_checkbox = gr.Checkbox(label='Input Image', value=modules.config.default_image_prompt_checkbox, container=False, elem_classes='min_check')
+                input_image_checkbox = gr.Checkbox(label='Input Image', value=True, container=False, elem_classes='min_check')
                 enhance_checkbox = gr.Checkbox(label='Enhance', value=modules.config.default_enhance_checkbox, container=False, elem_classes='min_check')
                 advanced_checkbox = gr.Checkbox(label='Advanced', value=modules.config.default_advanced_checkbox, container=False, elem_classes='min_check')
-            with gr.Row(visible=modules.config.default_image_prompt_checkbox) as image_input_panel:
+            with gr.Row(visible=True, elem_classes='input_source_check_row') as image_input_source_row:
+                use_uov_input = gr.Checkbox(label='UOV', value=False, container=False, elem_classes='min_check')
+                use_ip_input = gr.Checkbox(label='画像Prompt', value=False, container=False, elem_classes='min_check')
+                use_inpaint_input = gr.Checkbox(label='通常Inpaint', value=False, container=False, elem_classes='min_check')
+                use_noobai_inpaint_input = gr.Checkbox(label='NoobAI Inpaint', value=False, container=False, elem_classes='min_check')
+                use_noobai_outpaint_input = gr.Checkbox(label='NoobAI Outpaint', value=False, container=False, elem_classes='min_check')
+            combine_tabs_help = gr.HTML(
+                '<small>上のチェックがすべてオフなら、今開いているタブだけを使います。'
+                ' 1つでもオンにしたら、オンのタブだけを使います。</small>'
+            )
+            run_summary_html = gr.HTML(visible=False)
+            with gr.Column(visible=True) as image_input_panel:
                 with gr.Tabs(selected=modules.config.default_selected_image_input_tab_id):
                     with gr.Tab(label='Upscale or Variation', id='uov_tab') as uov_tab:
                         with gr.Row():
@@ -231,7 +308,7 @@ with shared.gradio_root:
                                         ip_image = grh.Image(label='Image', source='upload', type='numpy', show_label=False, height=300, value=modules.config.default_ip_images[image_count])
                                         ip_images.append(ip_image)
                                         ip_ctrls.append(ip_image)
-                                        with gr.Column(visible=modules.config.default_image_prompt_advanced_checkbox) as ad_col:
+                                        with gr.Column(visible=True) as ad_col:
                                             with gr.Row():
                                                 ip_stop = gr.Slider(label='Stop At', minimum=0.0, maximum=1.0, step=0.001, value=modules.config.default_ip_stop_ats[image_count])
                                                 ip_stops.append(ip_stop)
@@ -255,7 +332,7 @@ with shared.gradio_root:
 
                                             ip_type.change(lambda x: flags.default_parameters[x], inputs=[ip_type], outputs=[ip_stop, ip_weight], queue=False, show_progress=False)
                                         ip_ad_cols.append(ad_col)
-                        ip_advanced = gr.Checkbox(label='Advanced', value=modules.config.default_image_prompt_advanced_checkbox, container=False)
+                        ip_advanced = gr.Checkbox(label='Advanced', value=True, container=False)
                         gr.HTML('* \"Image Prompt\" is powered by Fooocus Image Mixture Engine (v1.0.1). <a href="https://github.com/lllyasviel/Fooocus/discussions/557" target="_blank">\U0001F4D4 Documentation</a>')
 
                         def ip_advance_checked(x):
@@ -369,7 +446,7 @@ with shared.gradio_root:
                                     label='Additional Prompt Quick List',
                                     components=[noobai_inpaint_additional_prompt]
                                 )
-                                gr.HTML('* Dedicated tab for the NoobAI ControlNet-based inpaint flow. Draw the mask directly on the canvas. Shared denoising and respective-field settings still live in Advanced -> Inpaint.')
+                                gr.HTML('* Draw the NoobAI inpaint mask here. If you also enable NoobAI Outpaint, both are used in one run. This canvas is used as the base image when available. Shared denoising settings are still in Advanced -> Inpaint.')
                                 noobai_example_inpaint_prompts.click(
                                     lambda x: x[0],
                                     inputs=noobai_example_inpaint_prompts,
@@ -406,7 +483,7 @@ with shared.gradio_root:
                                     label='Additional Prompt Quick List',
                                     components=[noobai_outpaint_additional_prompt]
                                 )
-                                gr.HTML('* Dedicated tab for the NoobAI ControlNet-based outpaint flow. Upload the image, choose the expansion side, and keep shared denoising/respective-field settings in Advanced -> Inpaint.')
+                                gr.HTML('* Choose the NoobAI outpaint directions here. If you also enable NoobAI Inpaint, both are used in one run. The NoobAI Inpaint canvas is used as the base image when available.')
                                 noobai_example_outpaint_prompts.click(
                                     lambda x: x[0],
                                     inputs=noobai_example_outpaint_prompts,
@@ -467,6 +544,13 @@ with shared.gradio_root:
 
                         metadata_input_image.upload(trigger_metadata_preview, inputs=metadata_input_image,
                                                     outputs=[metadata_json, metadata_state], queue=False, show_progress=True)
+                with gr.Accordion('入力タブの使い方', open=False):
+                    gr.HTML(
+                        '上のチェックがすべてオフなら、今開いているタブだけを使います。<br>'
+                        '上で1つでもオンにしたら、オンのタブだけを使います。<br>'
+                        'NoobAI Inpaint と NoobAI Outpaint を両方オンにすると、1回の処理に統合します。<br>'
+                        '通常Inpaint と NoobAI を両方オンにした場合は、NoobAI を優先します。'
+                    )
 
             with gr.Row(visible=modules.config.default_enhance_checkbox) as enhance_input_panel:
                 with gr.Tabs():
@@ -630,8 +714,8 @@ with shared.gradio_root:
             switch_js = "(x) => {if(x){viewer_to_bottom(100);viewer_to_bottom(500);}else{viewer_to_top();} return x;}"
             down_js = "() => {viewer_to_bottom();}"
 
-            input_image_checkbox.change(lambda x: gr.update(visible=x), inputs=input_image_checkbox,
-                                        outputs=image_input_panel, queue=False, show_progress=False, _js=switch_js)
+            input_image_checkbox.change(lambda x: [gr.update(visible=x), gr.update(visible=x), gr.update(visible=x)], inputs=input_image_checkbox,
+                                        outputs=[image_input_source_row, combine_tabs_help, image_input_panel], queue=False, show_progress=False, _js=switch_js)
             ip_advanced.change(lambda: None, queue=False, show_progress=False, _js=down_js)
 
             current_tab = gr.Textbox(value='uov', visible=False)
@@ -1116,7 +1200,8 @@ with shared.gradio_root:
         ]
 
         ctrls += [base_model, refiner_model, refiner_switch] + lora_ctrls
-        ctrls += [input_image_checkbox, current_tab]
+        ctrls += [input_image_checkbox, use_uov_input, use_ip_input, use_inpaint_input, use_noobai_inpaint_input,
+                  use_noobai_outpaint_input, current_tab]
         ctrls += [uov_method, uov_input_image]
         ctrls += [outpaint_selections, inpaint_input_image, inpaint_additional_prompt, inpaint_mask_image]
         ctrls += [noobai_inpaint_input_image, noobai_inpaint_additional_prompt]
@@ -1158,9 +1243,9 @@ with shared.gradio_root:
 
         prompt.input(parse_meta, inputs=[prompt, state_is_generating], outputs=[prompt, generate_button, load_parameter_button], queue=False, show_progress=False)
 
-        load_parameter_button.click(modules.meta_parser.load_parameter_button_click, inputs=[prompt, state_is_generating, inpaint_mode], outputs=load_data_outputs, queue=False, show_progress=False)
+        load_parameter_button.click(modules.meta_parser.load_parameter_button_click, inputs=[prompt, state_is_generating, inpaint_mode, image_number], outputs=load_data_outputs, queue=False, show_progress=False)
 
-        def trigger_metadata_import(saved_metadata, state_is_generating):
+        def trigger_metadata_import(saved_metadata, state_is_generating, current_image_number):
             parameters, metadata_scheme = (None, None) if saved_metadata is None else saved_metadata
             if parameters is None:
                 print('Could not find metadata in the image!')
@@ -1169,15 +1254,18 @@ with shared.gradio_root:
                 metadata_parser = modules.meta_parser.get_metadata_parser(metadata_scheme)
                 parsed_parameters = metadata_parser.to_json(parameters)
 
-            return modules.meta_parser.load_parameter_button_click(parsed_parameters, state_is_generating, inpaint_mode)
+            return modules.meta_parser.load_parameter_button_click(
+                parsed_parameters, state_is_generating, inpaint_mode, current_image_number
+            )
 
-        metadata_import_button.click(trigger_metadata_import, inputs=[metadata_state, state_is_generating], outputs=load_data_outputs, queue=False, show_progress=True) \
+        metadata_import_button.click(trigger_metadata_import, inputs=[metadata_state, state_is_generating, image_number], outputs=load_data_outputs, queue=False, show_progress=True) \
             .then(style_sorter.sort_styles, inputs=style_selections, outputs=style_selections, queue=False, show_progress=False)
 
         generate_button.click(lambda: (gr.update(visible=True, interactive=True), gr.update(visible=True, interactive=True), gr.update(visible=False, interactive=False), [], True),
                               outputs=[stop_button, skip_button, generate_button, gallery, state_is_generating]) \
             .then(fn=refresh_seed, inputs=[seed_random, image_seed], outputs=image_seed) \
             .then(fn=get_task, inputs=ctrls, outputs=currentTask) \
+            .then(fn=render_task_summary, inputs=currentTask, outputs=run_summary_html) \
             .then(fn=generate_clicked, inputs=currentTask, outputs=[progress_html, progress_window, progress_gallery, gallery]) \
             .then(lambda: (gr.update(visible=True, interactive=True), gr.update(visible=False, interactive=False), gr.update(visible=False, interactive=False), False),
                   outputs=[generate_button, stop_button, skip_button, state_is_generating]) \
@@ -1186,10 +1274,10 @@ with shared.gradio_root:
 
         reset_button.click(lambda: [worker.AsyncTask(args=[]), False, gr.update(visible=True, interactive=True)] +
                                    [gr.update(visible=False)] * 6 +
-                                   [gr.update(visible=True, value=[])],
+                                   [gr.update(visible=True, value=[]), gr.update(visible=False, value='')],
                            outputs=[currentTask, state_is_generating, generate_button,
                                     reset_button, stop_button, skip_button,
-                                    progress_html, progress_window, progress_gallery, gallery],
+                                    progress_html, progress_window, progress_gallery, gallery, run_summary_html],
                            queue=False)
 
         def trigger_describe(modes, img, apply_styles):

@@ -18,7 +18,7 @@ re_param = re.compile(re_param_code)
 re_imagesize = re.compile(r"^(\d+)x(\d+)$")
 
 
-def load_parameter_button_click(raw_metadata: dict | str, is_generating: bool, inpaint_mode: str):
+def load_parameter_button_click(raw_metadata: dict | str, is_generating: bool, inpaint_mode: str, current_image_number=None):
     loaded_parameter_dict = raw_metadata
     if isinstance(raw_metadata, str):
         loaded_parameter_dict = json.loads(raw_metadata)
@@ -26,7 +26,7 @@ def load_parameter_button_click(raw_metadata: dict | str, is_generating: bool, i
 
     results = [len(loaded_parameter_dict) > 0]
 
-    get_image_number('image_number', 'Image Number', loaded_parameter_dict, results)
+    get_image_number('image_number', 'Image Number', loaded_parameter_dict, results, default=current_image_number)
     get_str('prompt', 'Prompt', loaded_parameter_dict, results)
     get_str('negative_prompt', 'Negative Prompt', loaded_parameter_dict, results)
     get_list('styles', 'Styles', loaded_parameter_dict, results)
@@ -110,7 +110,10 @@ def get_image_number(key: str, fallback: str | None, source_dict: dict, results:
         h = min(h, modules.config.default_max_image_number)
         results.append(h)
     except:
-        results.append(1)
+        if default is None:
+            results.append(gr.update())
+        else:
+            results.append(default)
 
 
 def get_steps(key: str, fallback: str | None, source_dict: dict, results: list, default=None):
