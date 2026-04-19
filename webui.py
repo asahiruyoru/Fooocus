@@ -54,7 +54,6 @@ def render_task_summary(task: worker.AsyncTask):
         noobai_inputs = merge_noobai_inpaint_inputs(
             getattr(task, 'active_inpaint_tabs', []),
             task.noobai_inpaint_input_image,
-            task.noobai_inpaint_additional_prompt,
             task.noobai_inpaint_regions,
             task.noobai_outpaint_input_image,
             task.noobai_outpaint_additional_prompt,
@@ -437,11 +436,6 @@ with shared.gradio_root:
                                     elem_id='noobai_inpaint_canvas',
                                     show_label=False
                                 )
-                                noobai_inpaint_additional_prompt = gr.Textbox(
-                                    placeholder="Describe what you want to inpaint with NoobAI.",
-                                    elem_id='noobai_inpaint_additional_prompt',
-                                    label='NoobAI Inpaint Additional Prompt'
-                                )
                                 noobai_inpaint_regions = gr.Textbox(
                                     value='',
                                     visible=False,
@@ -473,19 +467,7 @@ with shared.gradio_root:
                                          '値を大きくするとマスク領域を強く描き直します。'
                                          '1.0 ではほぼ全面再生成、0.3-0.7 では img2img に近い挙動です。'
                                 )
-                                noobai_example_inpaint_prompts = gr.Dataset(
-                                    samples=modules.config.example_inpaint_prompts,
-                                    label='Additional Prompt Quick List',
-                                    components=[noobai_inpaint_additional_prompt]
-                                )
                                 gr.HTML('* Draw the NoobAI inpaint mask here. If you also enable NoobAI Outpaint, both are used in one run. This canvas is used as the base image when available. Shared denoising settings are also available on this tab.')
-                                noobai_example_inpaint_prompts.click(
-                                    lambda x: x[0],
-                                    inputs=noobai_example_inpaint_prompts,
-                                    outputs=noobai_inpaint_additional_prompt,
-                                    show_progress=False,
-                                    queue=False
-                                )
                                 gr.HTML('* 手描きマスクと矩形領域は 1 枚の NoobAI inpaint mask として結合されます。')
 
                     with gr.Tab(label='NoobAI Outpaint', id='noobai_outpaint_tab') as noobai_outpaint_tab:
@@ -1247,7 +1229,7 @@ with shared.gradio_root:
                   use_noobai_outpaint_input, current_tab]
         ctrls += [uov_method, uov_input_image]
         ctrls += [outpaint_selections, inpaint_input_image, inpaint_additional_prompt, inpaint_mask_image]
-        ctrls += [noobai_inpaint_input_image, noobai_inpaint_additional_prompt, noobai_inpaint_regions]
+        ctrls += [noobai_inpaint_input_image, noobai_inpaint_regions]
         ctrls += [noobai_outpaint_selections, noobai_outpaint_input_image, noobai_outpaint_additional_prompt]
         ctrls += [disable_preview, disable_intermediate_results, disable_seed_increment, black_out_nsfw]
         ctrls += [adm_scaler_positive, adm_scaler_negative, adm_scaler_end, adaptive_cfg, clip_skip]
