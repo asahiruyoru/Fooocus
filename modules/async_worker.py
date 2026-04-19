@@ -63,7 +63,6 @@ class AsyncTask:
         self.inpaint_additional_prompt = args.pop()
         self.inpaint_mask_image_upload = args.pop()
         self.noobai_inpaint_input_image = args.pop()
-        self.noobai_inpaint_additional_prompt = args.pop()
         self.noobai_inpaint_regions = args.pop()
         self.noobai_outpaint_selections = args.pop()
         self.noobai_outpaint_input_image = args.pop()
@@ -1289,7 +1288,6 @@ def worker():
         noobai_inputs = merge_noobai_inpaint_inputs(
             async_task.active_inpaint_tabs,
             async_task.noobai_inpaint_input_image,
-            async_task.noobai_inpaint_additional_prompt,
             async_task.noobai_inpaint_regions,
             async_task.noobai_outpaint_input_image,
             async_task.noobai_outpaint_additional_prompt,
