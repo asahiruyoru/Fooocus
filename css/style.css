@@ -458,3 +458,40 @@ div:has(> #positive_prompt) {
 #inpaint_brush_color input[type=color]{
   background: none;
 }
+
+#noobai_inpaint_region_controls {
+  border: 1px solid rgba(120, 120, 120, 0.35);
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(20, 24, 28, 0.04);
+  margin-top: 8px;
+}
+
+#noobai_inpaint_region_controls .noobai-region-toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+#noobai_inpaint_region_controls .noobai-region-help {
+  font-size: 0.92rem;
+  opacity: 0.85;
+}
+
+#noobai_region_mode_brush.selected,
+#noobai_region_mode_rect.selected {
+  border-color: #00bcd4;
+  box-shadow: inset 0 0 0 1px rgba(0, 188, 212, 0.55);
+}
+
+#noobai_region_overlay_canvas {
+  position: absolute;
+  z-index: 20;
+  pointer-events: none;
+}
+
+#noobai_region_overlay_canvas.rect-mode {
+  cursor: crosshair;
+}
