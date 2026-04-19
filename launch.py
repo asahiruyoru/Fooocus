@@ -100,7 +100,7 @@ if config.temp_path_cleanup_on_launch:
         print(f"[Cleanup] Failed to delete content of temp dir.")
 
 
-def download_models(default_model, previous_default_models, checkpoint_downloads, embeddings_downloads, lora_downloads, vae_downloads):
+def download_models(default_model, previous_default_models, checkpoint_downloads, embeddings_downloads, clip_downloads, lora_downloads, vae_downloads):
     from modules.util import get_file_from_folder_list
 
     for file_name, url in vae_approx_filenames:
@@ -133,6 +133,8 @@ def download_models(default_model, previous_default_models, checkpoint_downloads
         load_file_from_url(url=url, model_dir=model_dir, file_name=file_name)
     for file_name, url in embeddings_downloads.items():
         load_file_from_url(url=url, model_dir=config.path_embeddings, file_name=file_name)
+    for file_name, url in clip_downloads.items():
+        load_file_from_url(url=url, model_dir=config.path_clip, file_name=file_name)
     for file_name, url in lora_downloads.items():
         model_dir = os.path.dirname(get_file_from_folder_list(file_name, config.paths_loras))
         load_file_from_url(url=url, model_dir=model_dir, file_name=file_name)
@@ -144,7 +146,7 @@ def download_models(default_model, previous_default_models, checkpoint_downloads
 
 config.default_base_model_name, config.checkpoint_downloads = download_models(
     config.default_base_model_name, config.previous_default_models, config.checkpoint_downloads,
-    config.embeddings_downloads, config.lora_downloads, config.vae_downloads)
+    config.embeddings_downloads, config.clip_downloads, config.lora_downloads, config.vae_downloads)
 
 config.update_files()
 init_cache(config.model_filenames, config.paths_checkpoints, config.lora_filenames, config.paths_loras)

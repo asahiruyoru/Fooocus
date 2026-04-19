@@ -1,6 +1,8 @@
 *.json
 !anime.json
 !anima_preview2.json
+!wai_anima.json
+!wai_illustrious_v16_noobai.json
 !default.json
 !lcm.json
 !playground_v2.5.json

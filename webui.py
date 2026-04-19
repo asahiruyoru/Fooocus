@@ -441,12 +441,23 @@ with shared.gradio_root:
                                     elem_id='noobai_inpaint_additional_prompt',
                                     label='NoobAI Inpaint Additional Prompt'
                                 )
+                                noobai_inpaint_strength = gr.Slider(
+                                    label='NoobAI Inpaint Denoising Strength',
+                                    minimum=0.0,
+                                    maximum=1.0,
+                                    step=0.001,
+                                    value=1.0,
+                                    elem_id='noobai_inpaint_strength',
+                                    info='値を小さくすると元画像の形や色を残しやすくなります。'
+                                         '値を大きくするとマスク領域を強く描き直します。'
+                                         '1.0 ではほぼ全面再生成、0.3-0.7 では img2img に近い挙動です。'
+                                )
                                 noobai_example_inpaint_prompts = gr.Dataset(
                                     samples=modules.config.example_inpaint_prompts,
                                     label='Additional Prompt Quick List',
                                     components=[noobai_inpaint_additional_prompt]
                                 )
-                                gr.HTML('* Draw the NoobAI inpaint mask here. If you also enable NoobAI Outpaint, both are used in one run. This canvas is used as the base image when available. Shared denoising settings are still in Advanced -> Inpaint.')
+                                gr.HTML('* Draw the NoobAI inpaint mask here. If you also enable NoobAI Outpaint, both are used in one run. This canvas is used as the base image when available. Shared denoising settings are also available on this tab.')
                                 noobai_example_inpaint_prompts.click(
                                     lambda x: x[0],
                                     inputs=noobai_example_inpaint_prompts,
@@ -1019,8 +1030,17 @@ with shared.gradio_root:
                         inpaint_strength = gr.Slider(label='Inpaint Denoising Strength',
                                                      minimum=0.0, maximum=1.0, step=0.001, value=1.0,
                                                      info='Same as the denoising strength in A1111 inpaint. '
+                                                          'Smaller values preserve more of the original masked area, '
+                                                          'while larger values repaint it more aggressively. '
                                                           'Only used in inpaint, not used in outpaint. '
-                                                          '(Outpaint always use 1.0)')
+                                                          '(Outpaint always use 1.0) '
+                                                          '値を小さくすると元画像の形や色を残しやすくなります。'
+                                                          '値を大きくするとマスク領域を強く描き直します。'
+                                                          '1.0 ではほぼ全面再生成、0.3-0.7 では img2img に近い挙動です。')
+                        noobai_inpaint_strength.change(lambda v: v, inputs=noobai_inpaint_strength, outputs=inpaint_strength,
+                                                       queue=False, show_progress=False)
+                        inpaint_strength.change(lambda v: v, inputs=inpaint_strength, outputs=noobai_inpaint_strength,
+                                               queue=False, show_progress=False)
                         inpaint_respective_field = gr.Slider(label='Inpaint Respective Field',
                                                              minimum=0.0, maximum=1.0, step=0.001, value=0.618,
                                                              info='The area to inpaint. '
@@ -1124,12 +1144,13 @@ with shared.gradio_root:
                 previous_default_models = preset_prepared.get('previous_default_models', [])
                 checkpoint_downloads = preset_prepared.get('checkpoint_downloads', {})
                 embeddings_downloads = preset_prepared.get('embeddings_downloads', {})
+                clip_downloads = preset_prepared.get('clip_downloads', {})
                 lora_downloads = preset_prepared.get('lora_downloads', {})
                 vae_downloads = preset_prepared.get('vae_downloads', {})
 
                 preset_prepared['base_model'], preset_prepared['checkpoint_downloads'] = launch.download_models(
-                    default_model, previous_default_models, checkpoint_downloads, embeddings_downloads, lora_downloads,
-                    vae_downloads)
+                    default_model, previous_default_models, checkpoint_downloads, embeddings_downloads, clip_downloads,
+                    lora_downloads, vae_downloads)
 
                 if 'prompt' in preset_prepared and preset_prepared.get('prompt') == '':
                     del preset_prepared['prompt']
