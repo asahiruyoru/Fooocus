@@ -64,6 +64,7 @@ class AsyncTask:
         self.inpaint_mask_image_upload = args.pop()
         self.noobai_inpaint_input_image = args.pop()
         self.noobai_inpaint_additional_prompt = args.pop()
+        self.noobai_inpaint_regions = args.pop()
         self.noobai_outpaint_selections = args.pop()
         self.noobai_outpaint_input_image = args.pop()
         self.noobai_outpaint_additional_prompt = args.pop()
@@ -218,6 +219,7 @@ def worker():
     import fooocus_version
 
     from extras.censor import default_censor
+    from modules.noobai_inpaint_regions import build_noobai_inpaint_region_mask
     from modules.sdxl_styles import apply_style, get_random_style, fooocus_expansion, apply_arrays, random_style_name
     from modules.private_logger import log
     from extras.expansion import safe_str
@@ -1028,6 +1030,15 @@ def worker():
                 H, W = inpaint_image.shape[:2]
                 inpaint_mask = np.zeros((H, W), dtype=np.uint8)
 
+            if async_task.inpaint_engine == 'noobai':
+                region_mask, region_count = build_noobai_inpaint_region_mask(
+                    inpaint_image.shape,
+                    async_task.noobai_inpaint_regions,
+                )
+                if region_count > 0:
+                    inpaint_mask = np.maximum(inpaint_mask, region_mask)
+                    print(f'[NoobAI] Added {region_count} rotated inpaint region(s) from JSON.')
+
             if async_task.inpaint_advanced_masking_checkbox:
                 if isinstance(async_task.inpaint_mask_image_upload, dict):
                     if (isinstance(async_task.inpaint_mask_image_upload['image'], np.ndarray)
@@ -1279,6 +1290,7 @@ def worker():
             async_task.active_inpaint_tabs,
             async_task.noobai_inpaint_input_image,
             async_task.noobai_inpaint_additional_prompt,
+            async_task.noobai_inpaint_regions,
             async_task.noobai_outpaint_input_image,
             async_task.noobai_outpaint_additional_prompt,
             async_task.noobai_outpaint_selections,
@@ -1287,6 +1299,7 @@ def worker():
         if noobai_inputs is not None:
             async_task.inpaint_input_image = noobai_inputs['image']
             async_task.inpaint_additional_prompt = noobai_inputs['additional_prompt']
+            async_task.noobai_inpaint_regions = noobai_inputs['regions']
             async_task.inpaint_mask_image_upload = None
             async_task.inpaint_advanced_masking_checkbox = False
             async_task.invert_mask_checkbox = False
