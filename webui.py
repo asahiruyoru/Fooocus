@@ -55,6 +55,7 @@ def render_task_summary(task: worker.AsyncTask):
             getattr(task, 'active_inpaint_tabs', []),
             task.noobai_inpaint_input_image,
             task.noobai_inpaint_additional_prompt,
+            task.noobai_inpaint_regions,
             task.noobai_outpaint_input_image,
             task.noobai_outpaint_additional_prompt,
             task.noobai_outpaint_selections,
@@ -441,6 +442,14 @@ with shared.gradio_root:
                                     elem_id='noobai_inpaint_additional_prompt',
                                     label='NoobAI Inpaint Additional Prompt'
                                 )
+                                noobai_inpaint_regions = gr.Textbox(
+                                    label='NoobAI Rotated Inpaint Regions (JSON)',
+                                    lines=8,
+                                    placeholder='[{"cx":768,"cy":512,"width":240,"height":140,"angle":35}]',
+                                    info='Optional. Add any number of rotated rectangles as JSON. '
+                                         'Format: [{"cx": px, "cy": px, "width": px, "height": px, "angle": deg}]. '
+                                         'You can also use {"normalized": true, "regions": [...]} with 0-1 coordinates.'
+                                )
                                 noobai_inpaint_strength = gr.Slider(
                                     label='NoobAI Inpaint Denoising Strength',
                                     minimum=0.0,
@@ -465,6 +474,7 @@ with shared.gradio_root:
                                     show_progress=False,
                                     queue=False
                                 )
+                                gr.HTML('* Rotated region JSON is merged with the hand-drawn mask before NoobAI inpaint runs.')
 
                     with gr.Tab(label='NoobAI Outpaint', id='noobai_outpaint_tab') as noobai_outpaint_tab:
                         with gr.Row():
@@ -1225,7 +1235,7 @@ with shared.gradio_root:
                   use_noobai_outpaint_input, current_tab]
         ctrls += [uov_method, uov_input_image]
         ctrls += [outpaint_selections, inpaint_input_image, inpaint_additional_prompt, inpaint_mask_image]
-        ctrls += [noobai_inpaint_input_image, noobai_inpaint_additional_prompt]
+        ctrls += [noobai_inpaint_input_image, noobai_inpaint_additional_prompt, noobai_inpaint_regions]
         ctrls += [noobai_outpaint_selections, noobai_outpaint_input_image, noobai_outpaint_additional_prompt]
         ctrls += [disable_preview, disable_intermediate_results, disable_seed_increment, black_out_nsfw]
         ctrls += [adm_scaler_positive, adm_scaler_negative, adm_scaler_end, adaptive_cfg, clip_skip]
