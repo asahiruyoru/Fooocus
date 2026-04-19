@@ -451,14 +451,13 @@ with shared.gradio_root:
                                     '''
                                     <div id="noobai_inpaint_region_controls" class="noobai-region-controls">
                                       <div class="noobai-region-toolbar">
-                                        <button type="button" id="noobai_region_mode_brush" class="secondary">Brush Mask</button>
-                                        <button type="button" id="noobai_region_mode_rect" class="secondary">Rectangle Mask</button>
-                                        <button type="button" id="noobai_region_delete" class="secondary">Delete Selected Rectangle</button>
-                                        <button type="button" id="noobai_region_clear" class="secondary">Clear Rectangles</button>
-                                        <span id="noobai_region_status">Rectangles: 0</span>
+                                        <button type="button" id="noobai_region_mode_brush" class="secondary">手描き</button>
+                                        <button type="button" id="noobai_region_mode_rect" class="secondary">矩形</button>
+                                        <button type="button" id="noobai_region_clear" class="secondary">矩形を全削除</button>
+                                        <span id="noobai_region_status">手描き | 矩形: 0</span>
                                       </div>
                                       <div class="noobai-region-help">
-                                        Use <b>Brush Mask</b> for the normal sketch tool and <b>Rectangle Mask</b> to draw or move axis-aligned rectangles on the same image. You can switch between them in any order as many times as you want.
+                                        <b>手描き</b> は通常のスケッチ用、<b>矩形</b> は同じ画像上に矩形を追加・移動するときに使います。順番は自由に切り替えられ、選択中の矩形は <b>\</b> キーで削除できます。
                                       </div>
                                     </div>
                                     '''
@@ -487,7 +486,7 @@ with shared.gradio_root:
                                     show_progress=False,
                                     queue=False
                                 )
-                                gr.HTML('* Brush strokes and rectangle regions are merged into one NoobAI inpaint mask.')
+                                gr.HTML('* 手描きマスクと矩形領域は 1 枚の NoobAI inpaint mask として結合されます。')
 
                     with gr.Tab(label='NoobAI Outpaint', id='noobai_outpaint_tab') as noobai_outpaint_tab:
                         with gr.Row():

@@ -335,8 +335,8 @@ function createNoobaiRegionEditor() {
 
     const syncToTextbox = () => {
         setGradioTextValue('noobai_inpaint_regions_data', serialize());
-        const modeLabel = state.mode === 'rect' ? 'Rectangle Mask' : 'Brush Mask';
-        status.textContent = `${modeLabel} | Rectangles: ${state.rects.length}`;
+        const modeLabel = state.mode === 'rect' ? '矩形' : '手描き';
+        status.textContent = `${modeLabel} | 矩形: ${state.rects.length}`;
     };
 
     const parseTextboxValue = () => {
@@ -391,7 +391,7 @@ function createNoobaiRegionEditor() {
         overlay.addEventListener('mousedown', handleMouseDown);
     };
 
-    const getSourceElement = () => {
+    const getDisplayHostElement = () => {
         const candidates = Array.from(sourceRoot.querySelectorAll('canvas, img')).filter((element) => {
             const rect = element.getBoundingClientRect();
             return rect.width > 20 && rect.height > 20;
@@ -405,12 +405,31 @@ function createNoobaiRegionEditor() {
         return candidates[0];
     };
 
+    const getIntrinsicSourceElement = (fallbackElement) => {
+        const imageCandidates = Array.from(sourceRoot.querySelectorAll('img')).filter((element) => {
+            const rect = element.getBoundingClientRect();
+            return rect.width > 20 && rect.height > 20;
+        });
+
+        if (imageCandidates.length > 0) {
+            imageCandidates.sort((a, b) => {
+                const areaA = (a.naturalWidth || a.width || 1) * (a.naturalHeight || a.height || 1);
+                const areaB = (b.naturalWidth || b.width || 1) * (b.naturalHeight || b.height || 1);
+                return areaB - areaA;
+            });
+            return imageCandidates[0];
+        }
+
+        return fallbackElement;
+    };
+
     const updateSource = () => {
         ensureOverlay();
-        const source = getSourceElement();
-        if (!source) return false;
+        const displayHost = getDisplayHostElement();
+        if (!displayHost) return false;
+        const source = getIntrinsicSourceElement(displayHost);
 
-        const parent = source.parentElement;
+        const parent = displayHost.parentElement;
         if (!parent) return false;
 
         if (getComputedStyle(parent).position === 'static') {
@@ -432,7 +451,7 @@ function createNoobaiRegionEditor() {
             ? (source.naturalHeight || source.height || 1)
             : (source.height || source.clientHeight || 1);
 
-        const rect = source.getBoundingClientRect();
+        const rect = displayHost.getBoundingClientRect();
         const parentRect = parent.getBoundingClientRect();
 
         state.overlayCanvas.style.left = `${rect.left - parentRect.left}px`;
@@ -452,7 +471,7 @@ function createNoobaiRegionEditor() {
 
         const signature = `${width}x${height}:${rect.width}x${rect.height}:${source.src || ''}`;
         state.sourceElement = source;
-        state.overlayHost = source;
+        state.overlayHost = displayHost;
         state.sourceWidth = width;
         state.sourceHeight = height;
         if (state.lastSignature === signature) return false;
@@ -460,20 +479,39 @@ function createNoobaiRegionEditor() {
         return true;
     };
 
-    const normalizedToCanvasRect = (rect) => {
+    const getVisibleImageRect = () => {
         const overlayRect = state.overlayCanvas.getBoundingClientRect();
+        const imageWidth = Math.max(state.sourceWidth, 1);
+        const imageHeight = Math.max(state.sourceHeight, 1);
+        const scale = Math.min(
+            overlayRect.width / imageWidth,
+            overlayRect.height / imageHeight
+        );
+        const width = imageWidth * scale;
+        const height = imageHeight * scale;
         return {
-            x: rect.x * overlayRect.width,
-            y: rect.y * overlayRect.height,
-            width: rect.width * overlayRect.width,
-            height: rect.height * overlayRect.height,
+            left: (overlayRect.width - width) / 2,
+            top: (overlayRect.height - height) / 2,
+            width,
+            height,
+        };
+    };
+
+    const normalizedToCanvasRect = (rect) => {
+        const visibleRect = getVisibleImageRect();
+        return {
+            x: visibleRect.left + rect.x * visibleRect.width,
+            y: visibleRect.top + rect.y * visibleRect.height,
+            width: rect.width * visibleRect.width,
+            height: rect.height * visibleRect.height,
         };
     };
 
     const canvasPointToNormalized = (event) => {
         const rect = state.overlayCanvas.getBoundingClientRect();
-        const x = clamp((event.clientX - rect.left) / rect.width, 0, 1);
-        const y = clamp((event.clientY - rect.top) / rect.height, 0, 1);
+        const visibleRect = getVisibleImageRect();
+        const x = clamp((event.clientX - rect.left - visibleRect.left) / Math.max(visibleRect.width, 1), 0, 1);
+        const y = clamp((event.clientY - rect.top - visibleRect.top) / Math.max(visibleRect.height, 1), 0, 1);
         return {
             x,
             y,
@@ -622,7 +660,6 @@ function createNoobaiRegionEditor() {
 
     const brushModeButton = gradioApp().querySelector('#noobai_region_mode_brush');
     const rectModeButton = gradioApp().querySelector('#noobai_region_mode_rect');
-    const deleteButton = gradioApp().querySelector('#noobai_region_delete');
     const clearButton = gradioApp().querySelector('#noobai_region_clear');
 
     const updateModeButtons = () => {
@@ -651,12 +688,6 @@ function createNoobaiRegionEditor() {
             state.mode = 'rect';
             updateModeButtons();
             draw();
-        });
-    }
-
-    if (deleteButton) {
-        deleteButton.addEventListener('click', () => {
-            deleteSelectedRect();
         });
     }
 
