@@ -261,3 +261,456 @@ function htmlDecode(input) {
   var doc = new DOMParser().parseFromString(input, "text/html");
   return doc.documentElement.textContent;
 }
+
+function setGradioTextValue(elemId, value) {
+    const root = gradioApp();
+    const container = root.querySelector('#' + elemId);
+    if (!container) return;
+    const input = container.querySelector('textarea, input');
+    if (!input) return;
+    if (input.value === value) return;
+
+    const prototype = input.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+    const descriptor = Object.getOwnPropertyDescriptor(prototype, 'value');
+    descriptor.set.call(input, value);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+function getGradioTextValue(elemId) {
+    const root = gradioApp();
+    const container = root.querySelector('#' + elemId);
+    if (!container) return '';
+    const input = container.querySelector('textarea, input');
+    return input ? input.value || '' : '';
+}
+
+function createNoobaiRegionEditor() {
+    const editorRoot = gradioApp().querySelector('#noobai_inpaint_region_controls');
+    const status = gradioApp().querySelector('#noobai_region_status');
+    const sourceRoot = gradioApp().querySelector('#noobai_inpaint_canvas');
+
+    if (!editorRoot || !status || !sourceRoot) {
+        return null;
+    }
+
+    if (editorRoot.dataset.initialized === 'true') {
+        return editorRoot._noobaiRegionEditor || null;
+    }
+
+    editorRoot.dataset.initialized = 'true';
+    const state = {
+        rects: [],
+        selectedIndex: -1,
+        mode: 'brush',
+        dragMode: null,
+        dragRectIndex: -1,
+        dragStart: null,
+        draftRect: null,
+        sourceElement: null,
+        overlayCanvas: null,
+        overlayHost: null,
+        overlayParent: null,
+        ctx: null,
+        sourceWidth: 1,
+        sourceHeight: 1,
+        lastSignature: '',
+    };
+
+    const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+    const serialize = () => {
+        if (state.rects.length === 0) return '';
+        const payload = {
+            normalized: true,
+            regions: state.rects.map((rect) => ({
+                x: Number(rect.x.toFixed(6)),
+                y: Number(rect.y.toFixed(6)),
+                width: Number(rect.width.toFixed(6)),
+                height: Number(rect.height.toFixed(6)),
+            })),
+        };
+        return JSON.stringify(payload);
+    };
+
+    const syncToTextbox = () => {
+        setGradioTextValue('noobai_inpaint_regions_data', serialize());
+        const modeLabel = state.mode === 'rect' ? 'Rectangle Mask' : 'Brush Mask';
+        status.textContent = `${modeLabel} | Rectangles: ${state.rects.length}`;
+    };
+
+    const parseTextboxValue = () => {
+        const raw = getGradioTextValue('noobai_inpaint_regions_data').trim();
+        if (raw === '') {
+            state.rects = [];
+            state.selectedIndex = -1;
+            return;
+        }
+        try {
+            const parsed = JSON.parse(raw);
+            const regions = Array.isArray(parsed) ? parsed : (Array.isArray(parsed.regions) ? parsed.regions : []);
+            const normalized = !Array.isArray(parsed) && Boolean(parsed.normalized);
+            state.rects = regions.map((region) => {
+                if (normalized) {
+                    return {
+                        x: Number(region.x ?? 0),
+                        y: Number(region.y ?? 0),
+                        width: Number(region.width ?? region.w ?? 0),
+                        height: Number(region.height ?? region.h ?? 0),
+                    };
+                }
+                const width = Number(region.width ?? region.w ?? 0);
+                const height = Number(region.height ?? region.h ?? 0);
+                return {
+                    x: Number(region.x ?? 0) / Math.max(state.sourceWidth, 1),
+                    y: Number(region.y ?? 0) / Math.max(state.sourceHeight, 1),
+                    width: width / Math.max(state.sourceWidth, 1),
+                    height: height / Math.max(state.sourceHeight, 1),
+                };
+            }).filter((rect) => rect.width > 0 && rect.height > 0);
+            state.selectedIndex = state.rects.length === 0 ? -1 : Math.min(state.selectedIndex, state.rects.length - 1);
+        } catch (error) {
+            console.warn('Failed to parse NoobAI region state:', error);
+            state.rects = [];
+            state.selectedIndex = -1;
+        }
+    };
+
+    const ensureOverlay = () => {
+        if (state.overlayCanvas && state.overlayCanvas.isConnected) {
+            return;
+        }
+
+        const overlay = document.createElement('canvas');
+        overlay.id = 'noobai_region_overlay_canvas';
+        overlay.className = 'noobai-region-overlay-canvas';
+        overlay.tabIndex = 0;
+        overlay.setAttribute('aria-label', 'NoobAI rectangle region editor');
+        state.overlayCanvas = overlay;
+        state.ctx = overlay.getContext('2d');
+        overlay.addEventListener('mousedown', handleMouseDown);
+    };
+
+    const getSourceElement = () => {
+        const candidates = Array.from(sourceRoot.querySelectorAll('canvas, img')).filter((element) => {
+            const rect = element.getBoundingClientRect();
+            return rect.width > 20 && rect.height > 20;
+        });
+        if (candidates.length === 0) return null;
+        candidates.sort((a, b) => {
+            const areaA = a.getBoundingClientRect().width * a.getBoundingClientRect().height;
+            const areaB = b.getBoundingClientRect().width * b.getBoundingClientRect().height;
+            return areaB - areaA;
+        });
+        return candidates[0];
+    };
+
+    const updateSource = () => {
+        ensureOverlay();
+        const source = getSourceElement();
+        if (!source) return false;
+
+        const parent = source.parentElement;
+        if (!parent) return false;
+
+        if (getComputedStyle(parent).position === 'static') {
+            parent.style.position = 'relative';
+        }
+
+        if (state.overlayParent !== parent) {
+            if (state.overlayCanvas.parentElement) {
+                state.overlayCanvas.parentElement.removeChild(state.overlayCanvas);
+            }
+            parent.appendChild(state.overlayCanvas);
+            state.overlayParent = parent;
+        }
+
+        const width = source.tagName === 'IMG'
+            ? (source.naturalWidth || source.width || 1)
+            : (source.width || source.clientWidth || 1);
+        const height = source.tagName === 'IMG'
+            ? (source.naturalHeight || source.height || 1)
+            : (source.height || source.clientHeight || 1);
+
+        const rect = source.getBoundingClientRect();
+        const parentRect = parent.getBoundingClientRect();
+
+        state.overlayCanvas.style.left = `${rect.left - parentRect.left}px`;
+        state.overlayCanvas.style.top = `${rect.top - parentRect.top}px`;
+        state.overlayCanvas.style.width = `${rect.width}px`;
+        state.overlayCanvas.style.height = `${rect.height}px`;
+
+        const dpr = window.devicePixelRatio || 1;
+        const canvasWidth = Math.max(1, Math.round(rect.width * dpr));
+        const canvasHeight = Math.max(1, Math.round(rect.height * dpr));
+        if (state.overlayCanvas.width !== canvasWidth || state.overlayCanvas.height !== canvasHeight) {
+            state.overlayCanvas.width = canvasWidth;
+            state.overlayCanvas.height = canvasHeight;
+            state.ctx.setTransform(1, 0, 0, 1, 0, 0);
+            state.ctx.scale(dpr, dpr);
+        }
+
+        const signature = `${width}x${height}:${rect.width}x${rect.height}:${source.src || ''}`;
+        state.sourceElement = source;
+        state.overlayHost = source;
+        state.sourceWidth = width;
+        state.sourceHeight = height;
+        if (state.lastSignature === signature) return false;
+        state.lastSignature = signature;
+        return true;
+    };
+
+    const normalizedToCanvasRect = (rect) => {
+        const overlayRect = state.overlayCanvas.getBoundingClientRect();
+        return {
+            x: rect.x * overlayRect.width,
+            y: rect.y * overlayRect.height,
+            width: rect.width * overlayRect.width,
+            height: rect.height * overlayRect.height,
+        };
+    };
+
+    const canvasPointToNormalized = (event) => {
+        const rect = state.overlayCanvas.getBoundingClientRect();
+        const x = clamp((event.clientX - rect.left) / rect.width, 0, 1);
+        const y = clamp((event.clientY - rect.top) / rect.height, 0, 1);
+        return {
+            x,
+            y,
+        };
+    };
+
+    const hitTest = (point) => {
+        for (let index = state.rects.length - 1; index >= 0; index -= 1) {
+            const rect = state.rects[index];
+            if (
+                point.x >= rect.x &&
+                point.x <= rect.x + rect.width &&
+                point.y >= rect.y &&
+                point.y <= rect.y + rect.height
+            ) {
+                return index;
+            }
+        }
+        return -1;
+    };
+
+    const draw = () => {
+        if (!state.sourceElement || !state.overlayCanvas || !state.ctx) return;
+
+        const rect = state.overlayCanvas.getBoundingClientRect();
+        state.ctx.clearRect(0, 0, rect.width, rect.height);
+
+        state.rects.forEach((rect, index) => {
+            const canvasRect = normalizedToCanvasRect(rect);
+            const selected = index === state.selectedIndex;
+            state.ctx.save();
+            state.ctx.lineWidth = selected ? 3 : 2;
+            state.ctx.strokeStyle = selected ? '#ffb000' : '#00bcd4';
+            state.ctx.fillStyle = selected ? 'rgba(255, 176, 0, 0.18)' : 'rgba(0, 188, 212, 0.16)';
+            state.ctx.fillRect(canvasRect.x, canvasRect.y, canvasRect.width, canvasRect.height);
+            state.ctx.strokeRect(canvasRect.x, canvasRect.y, canvasRect.width, canvasRect.height);
+            state.ctx.restore();
+        });
+
+        if (state.draftRect) {
+            const canvasRect = normalizedToCanvasRect(state.draftRect);
+            state.ctx.save();
+            state.ctx.lineWidth = 2;
+            state.ctx.strokeStyle = '#ffffff';
+            state.ctx.setLineDash([6, 4]);
+            state.ctx.strokeRect(canvasRect.x, canvasRect.y, canvasRect.width, canvasRect.height);
+            state.ctx.restore();
+        }
+
+        state.overlayCanvas.style.pointerEvents = state.mode === 'rect' ? 'auto' : 'none';
+        state.overlayCanvas.classList.toggle('rect-mode', state.mode === 'rect');
+        syncToTextbox();
+    };
+
+    const refresh = () => {
+        const changed = updateSource();
+        if (!state.sourceElement) return;
+        if (changed && state.rects.length > 0) {
+            parseTextboxValue();
+        }
+        draw();
+    };
+
+    function handleMouseDown(event) {
+        if (state.mode !== 'rect') return;
+        if (!state.sourceElement) return;
+        if (state.overlayCanvas && typeof state.overlayCanvas.focus === 'function') {
+            state.overlayCanvas.focus({ preventScroll: true });
+        }
+        const point = canvasPointToNormalized(event);
+        const hitIndex = hitTest(point);
+        state.selectedIndex = hitIndex;
+
+        if (hitIndex >= 0) {
+            state.dragMode = 'move';
+            state.dragRectIndex = hitIndex;
+            state.dragStart = {
+                point,
+                rect: { ...state.rects[hitIndex] },
+            };
+        } else {
+            state.dragMode = 'draw';
+            state.dragRectIndex = -1;
+            state.dragStart = { point };
+            state.draftRect = {
+                x: point.x,
+                y: point.y,
+                width: 0,
+                height: 0,
+            };
+        }
+
+        draw();
+        event.preventDefault();
+    }
+
+    window.addEventListener('mousemove', (event) => {
+        if (state.mode !== 'rect') return;
+        if (!state.dragMode || !state.dragStart) return;
+        const point = canvasPointToNormalized(event);
+
+        if (state.dragMode === 'move' && state.dragRectIndex >= 0) {
+            const rect = state.dragStart.rect;
+            const dx = point.x - state.dragStart.point.x;
+            const dy = point.y - state.dragStart.point.y;
+            state.rects[state.dragRectIndex] = {
+                ...rect,
+                x: clamp(rect.x + dx, 0, 1 - rect.width),
+                y: clamp(rect.y + dy, 0, 1 - rect.height),
+            };
+        }
+
+        if (state.dragMode === 'draw') {
+            const x1 = clamp(Math.min(state.dragStart.point.x, point.x), 0, 1);
+            const y1 = clamp(Math.min(state.dragStart.point.y, point.y), 0, 1);
+            const x2 = clamp(Math.max(state.dragStart.point.x, point.x), 0, 1);
+            const y2 = clamp(Math.max(state.dragStart.point.y, point.y), 0, 1);
+            state.draftRect = {
+                x: x1,
+                y: y1,
+                width: x2 - x1,
+                height: y2 - y1,
+            };
+        }
+
+        draw();
+    });
+
+    window.addEventListener('mouseup', () => {
+        if (state.mode !== 'rect' && !state.dragMode) return;
+        if (!state.dragMode) return;
+
+        if (state.dragMode === 'draw' && state.draftRect) {
+            if (state.draftRect.width > 0.01 && state.draftRect.height > 0.01) {
+                state.rects.push(state.draftRect);
+                state.selectedIndex = state.rects.length - 1;
+            }
+            state.draftRect = null;
+        }
+
+        state.dragMode = null;
+        state.dragRectIndex = -1;
+        state.dragStart = null;
+        draw();
+    });
+
+    const brushModeButton = gradioApp().querySelector('#noobai_region_mode_brush');
+    const rectModeButton = gradioApp().querySelector('#noobai_region_mode_rect');
+    const deleteButton = gradioApp().querySelector('#noobai_region_delete');
+    const clearButton = gradioApp().querySelector('#noobai_region_clear');
+
+    const updateModeButtons = () => {
+        if (brushModeButton) {
+            brushModeButton.classList.toggle('selected', state.mode === 'brush');
+            brushModeButton.setAttribute('aria-pressed', state.mode === 'brush' ? 'true' : 'false');
+        }
+        if (rectModeButton) {
+            rectModeButton.classList.toggle('selected', state.mode === 'rect');
+            rectModeButton.setAttribute('aria-pressed', state.mode === 'rect' ? 'true' : 'false');
+        }
+    };
+
+    if (brushModeButton) {
+        brushModeButton.addEventListener('click', () => {
+            state.mode = 'brush';
+            state.dragMode = null;
+            state.draftRect = null;
+            updateModeButtons();
+            draw();
+        });
+    }
+
+    if (rectModeButton) {
+        rectModeButton.addEventListener('click', () => {
+            state.mode = 'rect';
+            updateModeButtons();
+            draw();
+        });
+    }
+
+    if (deleteButton) {
+        deleteButton.addEventListener('click', () => {
+            deleteSelectedRect();
+        });
+    }
+
+    if (clearButton) {
+        clearButton.addEventListener('click', () => {
+            state.rects = [];
+            state.selectedIndex = -1;
+            draw();
+        });
+    }
+
+    const deleteSelectedRect = () => {
+        if (state.selectedIndex < 0) return;
+        state.rects.splice(state.selectedIndex, 1);
+        state.selectedIndex = state.rects.length === 0 ? -1 : Math.min(state.selectedIndex, state.rects.length - 1);
+        draw();
+    };
+
+    const isDeleteShortcut = (event) => {
+        if (event.key === 'Delete' || event.key === 'Backspace') return true;
+        if (event.code === 'Backslash' || event.code === 'IntlYen' || event.code === 'IntlRo') return true;
+        if (event.key === '\\' || event.key === '\u00A5') return true;
+        return false;
+    };
+
+    document.addEventListener('keydown', (event) => {
+        if (state.selectedIndex < 0) return;
+
+        const activeElement = document.activeElement;
+        const isTypingTarget = activeElement && (
+            activeElement.tagName === 'INPUT' ||
+            activeElement.tagName === 'TEXTAREA' ||
+            activeElement.isContentEditable
+        );
+        if (isTypingTarget) return;
+
+        if (isDeleteShortcut(event)) {
+            deleteSelectedRect();
+            event.preventDefault();
+        }
+    });
+
+    parseTextboxValue();
+    updateModeButtons();
+    refresh();
+    window.setInterval(refresh, 1200);
+
+    editorRoot._noobaiRegionEditor = { refresh };
+    return editorRoot._noobaiRegionEditor;
+}
+
+function initNoobaiRegionEditor() {
+    createNoobaiRegionEditor();
+}
+
+onUiLoaded(initNoobaiRegionEditor);
+onAfterUiUpdate(initNoobaiRegionEditor);

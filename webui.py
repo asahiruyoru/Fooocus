@@ -443,12 +443,25 @@ with shared.gradio_root:
                                     label='NoobAI Inpaint Additional Prompt'
                                 )
                                 noobai_inpaint_regions = gr.Textbox(
-                                    label='NoobAI Rotated Inpaint Regions (JSON)',
-                                    lines=8,
-                                    placeholder='[{"cx":768,"cy":512,"width":240,"height":140,"angle":35}]',
-                                    info='Optional. Add any number of rotated rectangles as JSON. '
-                                         'Format: [{"cx": px, "cy": px, "width": px, "height": px, "angle": deg}]. '
-                                         'You can also use {"normalized": true, "regions": [...]} with 0-1 coordinates.'
+                                    value='',
+                                    visible=False,
+                                    elem_id='noobai_inpaint_regions_data'
+                                )
+                                noobai_inpaint_region_controls = gr.HTML(
+                                    '''
+                                    <div id="noobai_inpaint_region_controls" class="noobai-region-controls">
+                                      <div class="noobai-region-toolbar">
+                                        <button type="button" id="noobai_region_mode_brush" class="secondary">Brush Mask</button>
+                                        <button type="button" id="noobai_region_mode_rect" class="secondary">Rectangle Mask</button>
+                                        <button type="button" id="noobai_region_delete" class="secondary">Delete Selected Rectangle</button>
+                                        <button type="button" id="noobai_region_clear" class="secondary">Clear Rectangles</button>
+                                        <span id="noobai_region_status">Rectangles: 0</span>
+                                      </div>
+                                      <div class="noobai-region-help">
+                                        Use <b>Brush Mask</b> for the normal sketch tool and <b>Rectangle Mask</b> to draw or move axis-aligned rectangles on the same image. You can switch between them in any order as many times as you want.
+                                      </div>
+                                    </div>
+                                    '''
                                 )
                                 noobai_inpaint_strength = gr.Slider(
                                     label='NoobAI Inpaint Denoising Strength',
@@ -474,7 +487,7 @@ with shared.gradio_root:
                                     show_progress=False,
                                     queue=False
                                 )
-                                gr.HTML('* Rotated region JSON is merged with the hand-drawn mask before NoobAI inpaint runs.')
+                                gr.HTML('* Brush strokes and rectangle regions are merged into one NoobAI inpaint mask.')
 
                     with gr.Tab(label='NoobAI Outpaint', id='noobai_outpaint_tab') as noobai_outpaint_tab:
                         with gr.Row():
