@@ -70,8 +70,7 @@ def resolve_image_input_selection(input_image_checkbox, current_tab, use_uov, us
     }
 
 
-def merge_noobai_inpaint_inputs(active_inpaint_tabs, noobai_inpaint_input_image, noobai_inpaint_additional_prompt,
-                                noobai_inpaint_regions,
+def merge_noobai_inpaint_inputs(active_inpaint_tabs, noobai_inpaint_input_image, noobai_inpaint_regions,
                                 noobai_outpaint_input_image, noobai_outpaint_additional_prompt,
                                 noobai_outpaint_selections):
     use_noobai_inpaint = 'noobai_inpaint' in active_inpaint_tabs
@@ -86,7 +85,6 @@ def merge_noobai_inpaint_inputs(active_inpaint_tabs, noobai_inpaint_input_image,
 
     prompts = []
     for prompt in [
-        noobai_inpaint_additional_prompt if use_noobai_inpaint else '',
         noobai_outpaint_additional_prompt if use_noobai_outpaint else '',
     ]:
         cleaned_prompt = prompt.strip()
