@@ -305,20 +305,31 @@ with shared.gradio_root:
                                     elem_id='uov_upscale_factor'
                                 )
 
-                                def uov_method_changed(method):
-                                    if method == flags.subtle_variation:
-                                        return gr.update(visible=True), gr.update(visible=False)
-                                    elif method == flags.strong_variation:
-                                        return gr.update(visible=True), gr.update(visible=False)
-                                    elif method == flags.upscale_15:
-                                        return gr.update(visible=True), gr.update(visible=True)
-                                    elif method == flags.upscale_2:
-                                        return gr.update(visible=True), gr.update(visible=True)
-                                    else:
-                                        return gr.update(visible=False), gr.update(visible=False)
+                                uov_denoising_state = gr.State({'subtle': 0.5, 'strong': 0.85, 'upscale': 0.382})
+                                uov_prev_method = gr.State(modules.config.default_uov_method)
 
-                                uov_method.change(uov_method_changed, inputs=[uov_method],
-                                                  outputs=[uov_denoising_strength, uov_upscale_factor],
+                                def uov_method_changed(method, current_denoising, prev_method, state):
+                                    if prev_method == flags.subtle_variation:
+                                        state['subtle'] = current_denoising
+                                    elif prev_method == flags.strong_variation:
+                                        state['strong'] = current_denoising
+                                    elif prev_method in [flags.upscale_15, flags.upscale_2]:
+                                        state['upscale'] = current_denoising
+
+                                    if method == flags.subtle_variation:
+                                        return gr.update(visible=True, value=state['subtle']), gr.update(visible=False), method, state
+                                    elif method == flags.strong_variation:
+                                        return gr.update(visible=True, value=state['strong']), gr.update(visible=False), method, state
+                                    elif method == flags.upscale_15:
+                                        return gr.update(visible=True, value=state['upscale']), gr.update(visible=True), method, state
+                                    elif method == flags.upscale_2:
+                                        return gr.update(visible=True, value=state['upscale']), gr.update(visible=True), method, state
+                                    else:
+                                        return gr.update(visible=False), gr.update(visible=False), method, state
+
+                                uov_method.change(uov_method_changed,
+                                                  inputs=[uov_method, uov_denoising_strength, uov_prev_method, uov_denoising_state],
+                                                  outputs=[uov_denoising_strength, uov_upscale_factor, uov_prev_method, uov_denoising_state],
                                                   queue=False, show_progress=False)
                                 gr.HTML('<a href="https://github.com/lllyasviel/Fooocus/discussions/390" target="_blank">\U0001F4D4 Documentation</a>')
                     with gr.Tab(label='Image Prompt', id='ip_tab') as ip_tab:
