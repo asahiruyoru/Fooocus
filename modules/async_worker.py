@@ -58,6 +58,8 @@ class AsyncTask:
         self.current_tab = args.pop()
         self.uov_method = args.pop()
         self.uov_input_image = args.pop()
+        self.uov_denoising_strength = args.pop()
+        self.uov_upscale_factor = args.pop()
         self.outpaint_selections = args.pop()
         self.inpaint_input_image = args.pop()
         self.inpaint_additional_prompt = args.pop()
@@ -528,11 +530,11 @@ def worker():
         if len(all_ip_tasks) > 0:
             pipeline.final_unet = ip_adapter.patch_model(pipeline.final_unet, all_ip_tasks)
 
-    def apply_vary(async_task, uov_method, denoising_strength, uov_input_image, switch, current_progress, advance_progress=False):
+    def apply_vary(async_task, uov_method, denoising_strength, uov_input_image, switch, current_progress, advance_progress=False, custom_denoising=None):
         if 'subtle' in uov_method:
-            denoising_strength = 0.5
+            denoising_strength = custom_denoising if custom_denoising is not None else 0.5
         if 'strong' in uov_method:
-            denoising_strength = 0.85
+            denoising_strength = custom_denoising if custom_denoising is not None else 0.85
         if async_task.overwrite_vary_strength > 0:
             denoising_strength = async_task.overwrite_vary_strength
         shape_ceil = get_image_shape_ceil(uov_input_image)
@@ -654,14 +656,16 @@ def worker():
             async_task.inpaint_respective_field = 1.0
         return inpaint_image, inpaint_mask
 
-    def apply_upscale(async_task, uov_input_image, uov_method, switch, current_progress, advance_progress=False):
+    def apply_upscale(async_task, uov_input_image, uov_method, switch, current_progress, advance_progress=False, custom_upscale_factor=None, custom_denoising=None):
         H, W, C = uov_input_image.shape
         if advance_progress:
             current_progress += 1
         progressbar(async_task, current_progress, f'Upscaling image from {str((W, H))} ...')
         uov_input_image = perform_upscale(uov_input_image)
         print(f'Image upscaled.')
-        if '1.5x' in uov_method:
+        if custom_upscale_factor is not None:
+            f = custom_upscale_factor
+        elif '1.5x' in uov_method:
             f = 1.5
         elif '2x' in uov_method:
             f = 2.0
@@ -688,7 +692,7 @@ def worker():
             return direct_return, uov_input_image, None, None, None, None, None, current_progress
 
         tiled = True
-        denoising_strength = 0.382
+        denoising_strength = custom_denoising if custom_denoising is not None else 0.382
         if async_task.overwrite_upscale_strength > 0:
             denoising_strength = async_task.overwrite_upscale_strength
         initial_pixels = core.numpy_to_pytorch(uov_input_image)
@@ -1412,12 +1416,13 @@ def worker():
         if 'vary' in goals:
             async_task.uov_input_image, denoising_strength, initial_latent, width, height, current_progress = apply_vary(
                 async_task, async_task.uov_method, denoising_strength, async_task.uov_input_image, switch,
-                current_progress)
+                current_progress, custom_denoising=async_task.uov_denoising_strength)
 
         if 'upscale' in goals:
             direct_return, async_task.uov_input_image, denoising_strength, initial_latent, tiled, width, height, current_progress = apply_upscale(
                 async_task, async_task.uov_input_image, async_task.uov_method, switch, current_progress,
-                advance_progress=True)
+                advance_progress=True, custom_upscale_factor=async_task.uov_upscale_factor,
+                custom_denoising=async_task.uov_denoising_strength)
             if direct_return:
                 d = [('Upscale (Fast)', 'upscale_fast', '2x')]
                 if modules.config.default_black_out_nsfw or async_task.black_out_nsfw:

@@ -288,6 +288,38 @@ with shared.gradio_root:
                                 uov_input_image = grh.Image(label='Image', source='upload', type='numpy', show_label=False)
                             with gr.Column():
                                 uov_method = gr.Radio(label='Upscale or Variation:', choices=flags.uov_list, value=modules.config.default_uov_method)
+                                uov_denoising_strength = gr.Slider(
+                                    label='Denoising Strength',
+                                    minimum=0.0, maximum=1.0, step=0.001,
+                                    value=0.5,
+                                    visible=modules.config.default_uov_method in [flags.subtle_variation, flags.strong_variation, flags.upscale_15, flags.upscale_2],
+                                    info='値が大きいほど元画像から大きく変化し、小さいほど忠実に保ちます。',
+                                    elem_id='uov_denoising_strength'
+                                )
+                                uov_upscale_factor = gr.Slider(
+                                    label='Upscale Factor',
+                                    minimum=1.0, maximum=3.0, step=0.1,
+                                    value=1.5,
+                                    visible=modules.config.default_uov_method in [flags.upscale_15, flags.upscale_2],
+                                    info='画像を何倍に拡大するかを指定します。',
+                                    elem_id='uov_upscale_factor'
+                                )
+
+                                def uov_method_changed(method):
+                                    if method == flags.subtle_variation:
+                                        return gr.update(visible=True, value=0.5), gr.update(visible=False)
+                                    elif method == flags.strong_variation:
+                                        return gr.update(visible=True, value=0.85), gr.update(visible=False)
+                                    elif method == flags.upscale_15:
+                                        return gr.update(visible=True, value=0.382), gr.update(visible=True, value=1.5)
+                                    elif method == flags.upscale_2:
+                                        return gr.update(visible=True, value=0.382), gr.update(visible=True, value=2.0)
+                                    else:
+                                        return gr.update(visible=False), gr.update(visible=False)
+
+                                uov_method.change(uov_method_changed, inputs=[uov_method],
+                                                  outputs=[uov_denoising_strength, uov_upscale_factor],
+                                                  queue=False, show_progress=False)
                                 gr.HTML('<a href="https://github.com/lllyasviel/Fooocus/discussions/390" target="_blank">\U0001F4D4 Documentation</a>')
                     with gr.Tab(label='Image Prompt', id='ip_tab') as ip_tab:
                         ip_images = []
@@ -1227,7 +1259,7 @@ with shared.gradio_root:
         ctrls += [base_model, refiner_model, refiner_switch] + lora_ctrls
         ctrls += [input_image_checkbox, use_uov_input, use_ip_input, use_inpaint_input, use_noobai_inpaint_input,
                   use_noobai_outpaint_input, current_tab]
-        ctrls += [uov_method, uov_input_image]
+        ctrls += [uov_method, uov_input_image, uov_denoising_strength, uov_upscale_factor]
         ctrls += [outpaint_selections, inpaint_input_image, inpaint_additional_prompt, inpaint_mask_image]
         ctrls += [noobai_inpaint_input_image, noobai_inpaint_regions]
         ctrls += [noobai_outpaint_selections, noobai_outpaint_input_image, noobai_outpaint_additional_prompt]
