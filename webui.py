@@ -307,13 +307,13 @@ with shared.gradio_root:
 
                                 def uov_method_changed(method):
                                     if method == flags.subtle_variation:
-                                        return gr.update(visible=True, value=0.5), gr.update(visible=False)
+                                        return gr.update(visible=True), gr.update(visible=False)
                                     elif method == flags.strong_variation:
-                                        return gr.update(visible=True, value=0.85), gr.update(visible=False)
+                                        return gr.update(visible=True), gr.update(visible=False)
                                     elif method == flags.upscale_15:
-                                        return gr.update(visible=True, value=0.382), gr.update(visible=True, value=1.5)
+                                        return gr.update(visible=True), gr.update(visible=True)
                                     elif method == flags.upscale_2:
-                                        return gr.update(visible=True, value=0.382), gr.update(visible=True, value=2.0)
+                                        return gr.update(visible=True), gr.update(visible=True)
                                     else:
                                         return gr.update(visible=False), gr.update(visible=False)
 
