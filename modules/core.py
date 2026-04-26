@@ -162,7 +162,83 @@ def _is_anima_model_patcher(model):
     return hasattr(model, "model") and model.model.__class__.__name__ == "Anima"
 
 
-def _get_anima_reference_comfy_root():
+_COMFY_AIMDO_STUBS = {
+    "__init__.py": (
+        '"""Lightweight stubs for optional ComfyUI AIMDO integrations.\n\n'
+        'These placeholders are enough for the Anima sampler reference path,\n'
+        'which only needs the Python imports to succeed.\n'
+        '"""\n'
+    ),
+    "host_buffer.py": (
+        '"""Host buffer stub used when AIMDO is unavailable."""\n\n\n'
+        'class HostBuffer:\n'
+        '    def __init__(self, size):\n'
+        '        self.size = int(size)\n'
+    ),
+    "model_vbar.py": (
+        '"""No-op fallback for the optional AIMDO virtual BAR helpers."""\n\n\n'
+        'class ModelVBAR:\n'
+        '    def __init__(self, size, device_index=None):\n'
+        '        self.size = int(size)\n'
+        '        self.device_index = device_index\n\n'
+        '    def loaded_size(self):\n'
+        '        return 0\n\n'
+        '    def prioritize(self):\n'
+        '        return None\n\n\n'
+        'def vbar_fault(_vbar):\n'
+        '    return None\n\n\n'
+        'def vbar_signature_compare(_signature, _other_signature):\n'
+        '    return True\n\n\n'
+        'def vbar_unpin(_vbar):\n'
+        '    return None\n\n\n'
+        'def vbars_analyze():\n'
+        '    return 0\n\n\n'
+        'def vbars_reset_watermark_limits():\n'
+        '    return None\n'
+    ),
+    "torch.py": (
+        '"""Torch bridge stubs for optional AIMDO integrations."""\n\n'
+        'import torch\n\n\n'
+        'def aimdo_to_tensor(_vbar, device):\n'
+        '    return torch.empty(0, device=device)\n\n\n'
+        'def hostbuf_to_tensor(hostbuf):\n'
+        '    return torch.empty(hostbuf.size, dtype=torch.uint8)\n'
+    ),
+}
+
+
+def _default_anima_comfy_root():
+    if os.path.isdir("/content"):
+        return "/content/ComfyUI"
+    fooocus_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(fooocus_root, "comfyui_tmp")
+
+
+def _bootstrap_anima_comfy_reference(comfy_root):
+    import subprocess as _sp
+    comfy_sd = os.path.join(comfy_root, "comfy", "sd.py")
+    if not os.path.exists(comfy_sd):
+        parent = os.path.dirname(comfy_root) or "."
+        os.makedirs(parent, exist_ok=True)
+        print(f"[Anima] Cloning ComfyUI reference into {comfy_root} (shallow clone)...")
+        _sp.run(
+            ["git", "clone", "--depth", "1",
+             "https://github.com/comfyanonymous/ComfyUI.git", comfy_root],
+            check=True,
+        )
+    stub_dir = os.path.join(comfy_root, "comfy_aimdo")
+    os.makedirs(stub_dir, exist_ok=True)
+    for name, body in _COMFY_AIMDO_STUBS.items():
+        target = os.path.join(stub_dir, name)
+        if not os.path.exists(target):
+            with open(target, "w", encoding="utf-8") as f:
+                f.write(body)
+    os.environ["FOOOCUS_ANIMA_COMFY_ROOT"] = comfy_root
+    print(f"[Anima] FOOOCUS_ANIMA_COMFY_ROOT={comfy_root}")
+    return comfy_root
+
+
+def _get_anima_reference_comfy_root(auto_bootstrap=False):
     fooocus_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     candidates = [
         os.environ.get("FOOOCUS_ANIMA_COMFY_ROOT"),
@@ -179,6 +255,11 @@ def _get_anima_reference_comfy_root():
         if not os.path.exists(os.path.join(root, "comfy_aimdo", "vram_buffer.py")):
             continue
         return root
+    if auto_bootstrap:
+        try:
+            return _bootstrap_anima_comfy_reference(_default_anima_comfy_root())
+        except Exception as e:
+            print(f"[Anima] Failed to auto-bootstrap ComfyUI reference: {e}")
     return None
 
 
@@ -225,7 +306,10 @@ def _can_use_anima_reference_sampler(model, refiner):
         return False
     if getattr(model, "patches", {}):
         return False
-    if _get_anima_reference_comfy_root() is None:
+    # Auto-bootstrap the ComfyUI reference checkout the first time we hit this for an Anima model.
+    # Fooocus' standard sampler does not support Anima's 5D (B,C,T,H,W) latents, so without
+    # this the run crashes in anisotropic.adaptive_anisotropic_filter.
+    if _get_anima_reference_comfy_root(auto_bootstrap=True) is None:
         return False
     return True
 
