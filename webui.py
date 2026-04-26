@@ -238,6 +238,29 @@ with shared.gradio_root:
                     prompt = gr.Textbox(show_label=False, placeholder="Type prompt here or paste parameters.", elem_id='positive_prompt',
                                         autofocus=True, lines=3)
 
+                    with gr.Row():
+                        translate_preview_button = gr.Button(value='🌐 翻訳プレビュー', size='sm', scale=1, min_width=120)
+                        translate_preview_clear_button = gr.Button(value='✕ クリア', size='sm', scale=0, min_width=80)
+                    translate_preview_html = gr.HTML(value='', visible=True)
+
+                    def _run_translation_preview(text):
+                        from modules.translator import preview_translation_html
+                        return preview_translation_html(text)
+
+                    translate_preview_button.click(
+                        _run_translation_preview,
+                        inputs=prompt,
+                        outputs=translate_preview_html,
+                        queue=True,
+                        show_progress='minimal',
+                    )
+                    translate_preview_clear_button.click(
+                        lambda: '',
+                        inputs=None,
+                        outputs=translate_preview_html,
+                        queue=False,
+                    )
+
                     default_prompt = modules.config.default_prompt
                     if isinstance(default_prompt, str) and default_prompt != '':
                         shared.gradio_root.load(lambda: default_prompt, outputs=prompt)
