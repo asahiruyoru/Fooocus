@@ -7,7 +7,7 @@ from ldm_patched.contrib.external_align_your_steps import AlignYourStepsSchedule
 from ldm_patched.contrib.external_custom_sampler import SDTurboScheduler
 from ldm_patched.k_diffusion import sampling as k_diffusion_sampling
 from ldm_patched.modules.samplers import normal_scheduler, simple_scheduler, ddim_scheduler
-from ldm_patched.modules.model_base import SDXLRefiner, SDXL
+from ldm_patched.modules.model_base import SDXLRefiner, SDXL, Anima as AnimaModel
 from ldm_patched.modules.conds import CONDRegular
 from ldm_patched.modules.sample import get_additional_models, get_models_from_cond, cleanup_additional_models
 from ldm_patched.modules.samplers import resolve_areas_and_cond_masks, wrap_model, calculate_start_end_timesteps, \
@@ -23,6 +23,10 @@ refiner_switch_step = -1
 def clip_separate_inner(c, p, target_model=None, target_clip=None):
     if target_model is None or isinstance(target_model, SDXLRefiner):
         c = c[..., -1280:].clone()
+    elif isinstance(target_model, AnimaModel):
+        # Anima conditioning is already prepared by its Qwen adapter and does not
+        # have a CLIP text model to re-normalize here.
+        c = c.clone()
     elif isinstance(target_model, SDXL):
         c = c.clone()
     else:
