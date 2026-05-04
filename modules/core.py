@@ -176,6 +176,8 @@ def _get_anima_reference_comfy_root():
             continue
         if not os.path.exists(os.path.join(root, "comfy_aimdo", "host_buffer.py")):
             continue
+        if not os.path.exists(os.path.join(root, "comfy_aimdo", "vram_buffer.py")):
+            continue
         return root
     return None
 
