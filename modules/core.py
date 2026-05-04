@@ -204,6 +204,13 @@ _COMFY_AIMDO_STUBS = {
         'def hostbuf_to_tensor(hostbuf):\n'
         '    return torch.empty(hostbuf.size, dtype=torch.uint8)\n'
     ),
+    "vram_buffer.py": (
+        '"""VRAM buffer stub used when AIMDO is unavailable."""\n\n\n'
+        'class VRAMBuffer:\n'
+        '    def __init__(self, size, device_index=None):\n'
+        '        self.size = int(size)\n'
+        '        self.device_index = device_index\n'
+    ),
 }
 
 
@@ -250,9 +257,8 @@ def _get_anima_reference_comfy_root(auto_bootstrap=False):
             continue
         if not os.path.exists(os.path.join(root, "comfy", "sd.py")):
             continue
-        if not os.path.exists(os.path.join(root, "comfy_aimdo", "host_buffer.py")):
-            continue
-        if not os.path.exists(os.path.join(root, "comfy_aimdo", "vram_buffer.py")):
+        if any(not os.path.exists(os.path.join(root, "comfy_aimdo", name))
+               for name in _COMFY_AIMDO_STUBS):
             continue
         return root
     if auto_bootstrap:
