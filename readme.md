@@ -1,20 +1,20 @@
 # Fooocus (拡張フォーク版)
 
-> mashb1t の 1-Up Edition をベースに、**Anima Preview3 対応**や UI 改善を加えたフォークです。
+> mashb1t の 1-Up Edition をベースに、**Anima Base v1.0 / Hassaku Anima 対応**や UI 改善を加えたフォークです。
 
 ---
 
 ## 最近の変更点
 
-### Anima Preview3 対応 (実験的)
+### Anima Base v1.0 / Hassaku Anima 対応 (実験的)
 
-CircleStone Labs の **Anima Preview3** モデルファミリーを Fooocus から使えるようにしました (Preview2 も引き続き利用可能)。
+CircleStone Labs の **Anima Base v1.0** モデルと、Anima アーキテクチャベースのコミュニティ finetune (Hassaku Anima v0.1 など) を Fooocus から使えるようにしました。
 
 | 項目 | 内容 |
 |------|------|
 | バックエンド | DiT / Qwen3 テキストエンコーダ / Wan VAE のロードパスを追加 |
 | サンプラー修正 | ワーカー側を公式リファレンスサンプラー (`euler_ancestral` + `simple`) に合わせて調整 |
-| プリセット追加 | `wai_anima` / `anima_preview3` / `anima_preview2` / `wai_illustrious_v16_noobai` |
+| プリセット追加 | `wai_anima` / `anima_base_v1` / `hassaku_anima_v01` / `wai_illustrious_v16_noobai` |
 | デフォルトプロンプト | Anima のタグ式プロンプトに合わせた初期値を設定 |
 | 安全策 | Fooocus V2 プロンプト拡張の自動無効化、未対応サンプラー/スケジューラの自動フォールバック |
 | メタデータ | A1111 形式のメタデータを再現用画像に埋め込み |
@@ -75,7 +75,7 @@ Illustrious ベースの **NoobAI XL** 向け Inpaint/Outpaint ワークフロ�
 ### プロジェクトの状態
 
 - **SDXL ワークフロー**: バグ修正のみの長期サポート (LTS) 状態
-- **Anima Preview3**: 実験的サポート (上級者向け)。SDXL ワークフローの完全な代替ではなく、Preview2 も引き続き利用可能
+- **Anima Base v1.0 / Hassaku Anima**: 実験的サポート (上級者向け)。SDXL ワークフローの完全な代替ではなく、Anima アーキテクチャ系モデル (WAI Anima, Animayume なども含む) を併用可能
 - **Flux 等の新モデル**: [WebUI Forge](https://github.com/lllyasviel/stable-diffusion-webui-forge) や [ComfyUI](https://github.com/comfyanonymous/ComfyUI) を推奨
 
 ---
@@ -132,7 +132,7 @@ git pull
 ..\python_embeded\python.exe -m pip install -r "requirements_versions.txt"
 ```
 
-### Colab (WAI Anima / Anima Preview3 / Preview2 / Animayume)
+### Colab (WAI Anima / Anima Base v1.0 / Hassaku Anima / Animayume)
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/asahiruyoru/Fooocus/blob/main/notebooks/fooocus_anima_colab.ipynb)
 
@@ -140,7 +140,7 @@ git pull
 
 `wai_anima` preset は `1344x1344` / `60 steps` / `Quality` を基本値とし、checkpoint / Qwen text encoder / VAE を preset 経由で自動ダウンロードします。`balanced` と `custom_steps` を選んだ場合のみ、notebook 側で派生 preset を一時生成します。
 
-ノートブックの設定セルから、モデルプロファイル (`wai_anima` / `anima_preview3` / `anima_preview2` / `animayume_v03`) やステップ数を選択できます。既定は [`wai_anima`](https://civitai.com/models/2544636/wai-anima) (Anima アーキテクチャの finetune) です。
+ノートブックの設定セルから、モデルプロファイル (`wai_anima` / `anima_base_v1` / `hassaku_anima_v01` / `animayume_v03`) やステップ数を選択できます。既定は [`wai_anima`](https://civitai.com/models/2544636/wai-anima) (Anima アーキテクチャの finetune) です。
 
 > WAI Anima を含む Anima 系チェックポイントは、Qwen3 テキストエンコーダ (`qwen_3_06b_base.safetensors`) と Qwen Image VAE (`qwen_image_vae.safetensors`) をペアでロードします (ノートブックが自動ダウンロード)。
 
@@ -155,8 +155,6 @@ git clone --depth 1 \
 cd /content/Fooocus
 python entry_with_update.py --share --always-gpu --preset wai_anima
 ```
-
-検証用の旧 bootstrap スクリプト (`scripts/anima_preview2_colab_bootstrap.py`) も残していますが、通常の起動では preset ダウンロードだけで足ります。
 </details>
 
 ### Colab (SDXL)
@@ -301,7 +299,7 @@ adetailer に類似した機能で、動的画像検出ベースのワンクリ�
 
 ---
 
-## Anima Preview3 の詳細
+## Anima Base v1.0 / Hassaku Anima の詳細
 
 ### 変更点サマリ
 
@@ -318,7 +316,7 @@ adetailer に類似した機能で、動的画像検出ベースのワンクリ�
 
 `ldm_patched/` 内部の Comfy 由来コードを、Anima が要求するリファレンスサンプラーの挙動に合わせて修正しただけです。Colab 診断時に ComfyUI をリファレンス実装として比較に用いましたが、本アプリは Fooocus のままです。
 
-### 推奨デフォルト値 (Preview3)
+### 推奨デフォルト値 (Anima Base v1.0)
 
 | 項目 | 値 |
 |------|----|
@@ -330,7 +328,7 @@ adetailer に類似した機能で、動的画像検出ベースのワンクリ�
 | Colab フラグ | `--always-gpu` |
 
 <details>
-<summary>デフォルトプロンプト (Preview3)</summary>
+<summary>デフォルトプロンプト (Anima Base v1.0)</summary>
 
 **Positive:**
 ```

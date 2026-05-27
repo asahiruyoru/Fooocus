@@ -310,7 +310,7 @@ models = [Stable_Zero123, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXLRefiner, SDX
 models += [SVD_img2vid]
 
 
-class AnimaPreview2(supported_models_base.BASE):
+class Anima(supported_models_base.BASE):
     unet_config = {
         "image_model": "anima",
     }
@@ -347,5 +347,5 @@ class AnimaPreview2(supported_models_base.BASE):
         return state_dict
 
 
-models += [AnimaPreview2]
+models += [Anima]
 

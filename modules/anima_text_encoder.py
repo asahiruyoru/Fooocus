@@ -1,5 +1,5 @@
 """
-Anima Preview2 text encoder helpers.
+Anima text encoder helpers.
 
 Prefer the bundled ComfyUI reference implementation so that Anima uses the
 same local tokenizers and Qwen3 encoder path as its native workflow. Fall

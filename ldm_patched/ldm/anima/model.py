@@ -1,5 +1,5 @@
 """
-Anima Preview2 DiT model.
+Anima DiT model.
 
 This keeps the Anima adapter logic close to the upstream ComfyUI reference
 implementation instead of maintaining a much larger local port of the Cosmos

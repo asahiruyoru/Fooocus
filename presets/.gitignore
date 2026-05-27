@@ -1,6 +1,7 @@
 *.json
 !anime.json
-!anima_preview2.json
+!anima_base_v1.json
+!hassaku_anima_v01.json
 !wai_anima.json
 !wai_illustrious_v16_noobai.json
 !default.json

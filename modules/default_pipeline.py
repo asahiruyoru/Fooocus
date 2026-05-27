@@ -60,7 +60,7 @@ def assert_model_integrity():
     error_message = None
 
     if not isinstance(model_base.unet_with_lora.model, (SDXL, AnimaModel)):
-        error_message = 'You have selected base model other than SDXL or Anima Preview2. This is not supported yet.'
+        error_message = 'You have selected base model other than SDXL or Anima. This is not supported yet.'
 
     if error_message is not None:
         raise NotImplementedError(error_message)

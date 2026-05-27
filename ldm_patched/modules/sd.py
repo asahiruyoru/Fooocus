@@ -530,7 +530,7 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
                 vae = VAE(sd=vae_sd)
             else:
                 # Auto-detect separate VAE file for models like Anima
-                auto_vae = _find_anima_vae(ckpt_path) if hasattr(model_config, '__class__') and model_config.__class__.__name__ == 'AnimaPreview2' else None
+                auto_vae = _find_anima_vae(ckpt_path) if hasattr(model_config, '__class__') and model_config.__class__.__name__ == 'Anima' else None
                 if auto_vae is not None:
                     vae_sd = ldm_patched.modules.utils.load_torch_file(auto_vae)
                     vae = VAE(sd=vae_sd)

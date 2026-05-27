@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-End-to-end Anima Preview2 sampling test.
+End-to-end Anima Base v1.0 sampling test.
 
 This script avoids the Gradio UI and directly exercises:
 1. text encoding
@@ -34,7 +34,7 @@ def setup_paths() -> tuple[str, list[str]]:
 def find_model_files(fooocus_root: str) -> tuple[dict[str, str], bool]:
     paths = {
         "checkpoint": os.path.join(
-            fooocus_root, "models", "checkpoints", "anima-preview2.safetensors"
+            fooocus_root, "models", "checkpoints", "anima-base-v1.0.safetensors"
         ),
         "clip": os.path.join(
             fooocus_root, "models", "clip", "qwen_3_06b_base.safetensors"
@@ -326,7 +326,7 @@ def save_test_image_with_metadata(
         seed=seed,
         sampler=sampler,
         scheduler=scheduler,
-        base_model_name="anima-preview2.safetensors",
+        base_model_name="anima-base-v1.0.safetensors",
         vae_name="qwen_image_vae.safetensors",
         performance="Quality" if steps >= 40 else None,
         full_prompt=[prompt],
@@ -352,7 +352,7 @@ def save_test_image_with_metadata(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Anima Preview2 E2E sampling test")
+    parser = argparse.ArgumentParser(description="Anima Base v1.0 E2E sampling test")
     parser.add_argument(
         "--prompt",
         default=(
@@ -388,7 +388,7 @@ def main() -> int:
         args.output = os.path.join(fooocus_root, "tests", "anima_test_output.png")
 
     print("=" * 60)
-    print("Anima Preview2 E2E sampling test")
+    print("Anima Base v1.0 E2E sampling test")
     print("=" * 60)
 
     paths, all_found = find_model_files(fooocus_root)
