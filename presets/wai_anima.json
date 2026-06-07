@@ -39,7 +39,7 @@
     ],
     "default_metadata_scheme": "a1111",
     "default_model": "waiANIMA_v10Base10.safetensors",
-    "default_overwrite_step": 60,
+    "default_overwrite_step": -1,
     "default_overwrite_switch": -1,
     "default_performance": "Quality",
     "default_prompt": "masterpiece, best quality, score_7, highres, safe, 1girl, solo, looking at viewer, smile, long hair, detailed eyes, detailed face, clean lines, smooth shading, soft lighting",
