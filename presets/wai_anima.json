@@ -1,6 +1,6 @@
 {
     "checkpoint_downloads": {
-        "waiANIMA_v10.safetensors": "https://civitai.com/api/download/models/2859702?type=Model&format=SafeTensor&size=pruned&fp=fp16"
+        "waiANIMA_v10Base10.safetensors": "https://civitai.com/api/download/models/2983680?fileId=2863158"
     },
     "clip_downloads": {
         "qwen_3_06b_base.safetensors": "https://huggingface.co/circlestone-labs/Anima/resolve/main/split_files/text_encoders/qwen_3_06b_base.safetensors"
@@ -38,7 +38,7 @@
         ]
     ],
     "default_metadata_scheme": "a1111",
-    "default_model": "waiANIMA_v10.safetensors",
+    "default_model": "waiANIMA_v10Base10.safetensors",
     "default_overwrite_step": 60,
     "default_overwrite_switch": -1,
     "default_performance": "Quality",
@@ -55,6 +55,7 @@
     "embeddings_downloads": {},
     "lora_downloads": {},
     "previous_default_models": [
+        "waiANIMA_v10Base10.safetensors",
         "waiANIMA_v10.safetensors"
     ],
     "vae_downloads": {
