@@ -1,6 +1,6 @@
 {
     "checkpoint_downloads": {
-        "waiANIMA_v10Base10.safetensors": "https://civitai.com/api/download/models/2983680?fileId=2863158"
+        "waiANIMA_v10Base10.safetensors": "https://huggingface.co/Kutches/Anim4/resolve/main/waiANIMA_v10Base10.safetensors"
     },
     "clip_downloads": {
         "qwen_3_06b_base.safetensors": "https://huggingface.co/circlestone-labs/Anima/resolve/main/split_files/text_encoders/qwen_3_06b_base.safetensors"
